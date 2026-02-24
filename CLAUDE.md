@@ -1,17 +1,24 @@
-# BOT Assessor - Trading Bot de Alto Nivel para o Mercado Brasileiro
+# Analise de Carteira - Sistema de Análise de Carteira de Clientes
 
 ## Visao Geral
-Bot de investimentos automatizado de altissimo nivel para o mercado financeiro brasileiro (B3).
-O projeto segue DDD, Arquitetura Hexagonal, CQRS e praticas rigorosas de engenharia de software.
+Sistema de alto nível para assessores de investimento analisarem carteiras de clientes.
+Permite diagnóstico de alocação, risco, performance, aderência ao perfil e geração de recomendações fundamentadas.
+O projeto segue DDD, Arquitetura Hexagonal, CQRS e práticas rigorosas de engenharia de software.
+
+## Objetivo do Negócio
+- Assessor cadastra cliente com seu perfil de investidor (conservador, moderado, arrojado)
+- Sistema ingere a carteira atual do cliente (posições, ativos, valores)
+- Sistema analisa: alocação, concentração, risco (CVaR), performance, aderência ao perfil
+- Sistema gera relatório com diagnóstico e recomendações de rebalanceamento
+- Assessor usa o relatório para embasar reunião com o cliente
 
 ## Stack Tecnologico
-- **Linguagem**: Python 3.12+ (principal), C++ (execucao critica)
+- **Linguagem**: Python 3.12+
 - **Framework Web**: FastAPI (async)
 - **ORM**: SQLAlchemy 2.0 (async)
-- **Database**: PostgreSQL + QuestDB (time-series)
+- **Database**: PostgreSQL
 - **Cache**: Redis
-- **Message Broker**: Kafka / RabbitMQ
-- **ML**: LightGBM, XGBoost, CatBoost, PyTorch, FinBERT-PT-BR
+- **ML**: LightGBM, XGBoost, PyTorch (scoring de risco e recomendacoes)
 - **Observabilidade**: OpenTelemetry + Grafana Stack (Tempo, Prometheus, Loki)
 - **Testes**: pytest, Testcontainers, Hypothesis
 - **CI/CD**: GitHub Actions
@@ -25,7 +32,7 @@ O projeto segue DDD, Arquitetura Hexagonal, CQRS e praticas rigorosas de engenha
 - `ruff check src/` - Lint
 - `mypy src/` - Type checking
 - `black src/ tests/` - Formatacao
-- `docker compose up -d` - Infraestrutura local (PostgreSQL, Redis, Kafka, QuestDB)
+- `docker compose up -d` - Infraestrutura local (PostgreSQL, Redis)
 
 ## Arquitetura Obrigatoria
 
@@ -34,7 +41,7 @@ O projeto segue DDD, Arquitetura Hexagonal, CQRS e praticas rigorosas de engenha
 src/
   domain/           # NUCLEO - Zero dependencias externas
   application/      # USE CASES - Orquestracao via CQRS
-  adapters/         # INFRAESTRUTURA - Driving (REST, WS, CLI) e Driven (DB, APIs, Broker)
+  adapters/         # INFRAESTRUTURA - Driving (REST) e Driven (DB, APIs)
   config/           # Composition Root + Settings
 ```
 
@@ -45,6 +52,65 @@ TODAS as dependencias apontam para DENTRO (Domain). O Domain NAO importa NADA de
 - Commands: imperativos, imutaveis, void, com idempotency_key
 - Queries: side-effect free, podem retornar dados
 - Um handler por Command/Query
+
+## Dominio: Analise de Carteira de Clientes
+
+### Entidades Principais
+- **Cliente**: perfil de investidor, objetivo financeiro, horizonte, tolerancia a risco
+- **Carteira**: conjunto de posicoes de um cliente em um momento
+- **Posicao**: ativo + quantidade + preco medio + valor atual
+- **Ativo**: ticker, tipo (acao, FII, RF, ETF, BDR, cripto), setor
+- **Analise**: diagnostico gerado para uma carteira em uma data
+- **Recomendacao**: sugestao de rebalanceamento com justificativa
+
+### Perfis de Investidor (Ubiquitous Language)
+- **Conservador**: RF > 70%, volatilidade baixa, horizonte curto (< 2 anos)
+- **Moderado**: RF 40-70%, RV ate 60%, horizonte medio (2-5 anos)
+- **Arrojado**: RV > 60%, aceita alta volatilidade, horizonte longo (> 5 anos)
+
+### Metricas de Analise
+- **Alocacao**: % por classe de ativo, por setor, por emissor
+- **Concentracao**: HHI (Herfindahl-Hirschman Index), top 5 ativos
+- **Risco**: Volatilidade anualizada, CVaR 95%, Beta da carteira vs Ibovespa
+- **Performance**: Rentabilidade vs benchmark (CDI, IBOV, IPCA+)
+- **Aderencia ao Perfil**: score 0-100 de aderencia ao perfil declarado
+- **Diversificacao**: numero efetivo de ativos, correlacao media entre posicoes
+
+### Regras de Negocio Criticas
+- Carteira so pode ser analisada se tiver pelo menos 1 posicao
+- Analise expira em 24h (dados de mercado mudam)
+- Recomendacao de rebalanceamento so gerada se aderencia < 70
+- Concentracao por emissor: alerta se > 20% em um unico ativo
+- Concentracao por setor: alerta se > 40% em um unico setor
+- Concentracao em RF: alertar conservador se RF < 60%, arrojado se RF > 80%
+
+### Classes de Ativos Suportadas
+- Acoes (ON, PN, Units) - B3
+- FIIs (Fundos de Investimento Imobiliario)
+- ETFs (nacionais e internacionais via BDR)
+- Renda Fixa (Tesouro Direto, CDB, LCI, LCA, Debentures)
+- BDRs (Brazilian Depositary Receipts)
+- Fundos de Investimento
+- Cripto (Bitcoin, Ethereum)
+
+### Tributacao Relevante para Relatorios
+- Acoes/ETFs: 15% swing, 20% day trade (isencao R$20k/mes acoes PF)
+- FIIs: isentos para PF em bolsa se fundo > 50 cotistas e PF < 10% do fundo
+- RF: tabela regressiva 22.5% (ate 180d) ate 15% (acima de 720d)
+- BDRs: 15% (ate R$5mi) ou 22.5% acima
+- Cripto: 15% acima de R$35k/mes
+- Sistema deve indicar impacto tributario nas recomendacoes de rebalanceamento
+
+### Glossario (Ubiquitous Language)
+- **PM**: Preco medio ponderado (custo de aquisicao)
+- **PL**: Patrimonio Liquido da carteira
+- **RV**: Renda Variavel (acoes, FIIs, ETFs)
+- **RF**: Renda Fixa (tesouro, CDB, LCI, LCA)
+- **CVaR/ES**: Conditional Value at Risk / Expected Shortfall
+- **HHI**: Herfindahl-Hirschman Index (medida de concentracao)
+- **Score de Aderencia**: 0-100, quanto a carteira reflete o perfil do cliente
+- **Rebalanceamento**: ajuste da carteira para realinhar ao perfil alvo
+- **Benchmark**: CDI (RF), IBOV (RV), IPCA+ (inflacao), IMA-B (titulos indexados)
 
 ## Regras de Codigo
 
@@ -61,9 +127,9 @@ TODAS as dependencias apontam para DENTRO (Domain). O Domain NAO importa NADA de
 - Value Objects IMUTAVEIS: `@dataclass(frozen=True)` com validacao no `__post_init__`
 - Um Aggregate Root por Aggregate (unico ponto de acesso externo)
 - Um Repository por Aggregate Root (interface no domain, impl na infra)
-- Domain Events no tempo passado e imutaveis (OrderExecuted, PositionClosed)
+- Domain Events no tempo passado e imutaveis (CarteiraCriada, AnaliseGerada, RecomendacaoEmitida)
 - Referenciar outros Aggregates APENAS por ID, nunca por objeto
-- Ubiquitous Language: nomes refletem o dominio (order.submit(), NAO order.insert_into_db())
+- Ubiquitous Language: nomes refletem o dominio
 
 ### Application Layer
 - Use Cases orquestram mas NAO contem logica de negocio
@@ -74,15 +140,12 @@ TODAS as dependencias apontam para DENTRO (Domain). O Domain NAO importa NADA de
 ### Adapters/Infrastructure
 - NENHUMA logica de negocio em adapters
 - ORM models NAO sao domain entities (usar mappers)
-- Anticorruption Layer para APIs externas (B3, corretoras)
-- Outbox Pattern para publicacao atomica de eventos
-- Inbox Pattern para deduplicacao de mensagens
+- Anticorruption Layer para APIs externas (brapi.dev, BCB, CVM)
 
 ### Dependency Injection
 - Constructor Injection como padrao
 - Depender de abstracoes (Protocol/ABC), nunca de concretas
 - Composition Root em config/container.py (UNICO lugar com deps concretas)
-- Pure DI primeiro; container so quando complexidade justificar
 - NUNCA usar Service Locator
 
 ### Testes (REGRAS ABSOLUTAS)
@@ -99,66 +162,22 @@ TODAS as dependencias apontam para DENTRO (Domain). O Domain NAO importa NADA de
 - Logs SEMPRE estruturados em JSON (structlog)
 - Campos obrigatorios: timestamp, level, service, message, trace_id, span_id
 - OpenTelemetry para traces e metricas
-- NUNCA labels de alta cardinalidade em metricas
 - Result Pattern para erros de dominio; Exceptions para erros de infra
 
-### Idempotencia
-- POST/PATCH com Idempotency-Key no header
-- Outbox Pattern: banco + evento na mesma transacao
-- UPSERT preferido a INSERT
-- Exactly-once = at-least-once + idempotent processing
-
-## Dominio: Mercado Financeiro Brasileiro
-
-### Contexto
-- B3: unica bolsa do Brasil (monopolio, sem fragmentacao)
-- Liquidacao D+2
-- Bot opera via corretora autorizada pela CVM
-
-### Horarios de Negociacao
-- Acoes: 10:00-17:55 (pre-abertura 09:30, call de fechamento 17:55-18:00)
-- Futuros indice (WIN/IND): 09:00-18:25
-- Futuros dolar (WDO/DOL): 09:00-18:30
-- NAO enviar ordens fora desses horarios
-
-### Compliance (CRITICO)
-- NUNCA: spoofing, layering, wash trading, front running (CRIME: 1-8 anos)
-- Kill switch obrigatorio
-- Registros por minimo 5 anos
-- Controles pre-trade: limite posicao, loss limit, price collar, rate limiting
-
-### Tributacao
-- Swing Trade: 15% IR (isencao R$20k/mes apenas acoes a vista PF)
-- Day Trade: 20% IR (sem isencao)
-- Prejuizo DT so compensa DT; ST so compensa ST
-- Preco medio ponderado (NAO FIFO)
-- Bot DEVE ter modulo fiscal automatizado
-
-### Gestao de Risco
-- CVaR 97.5% como metrica primaria
-- Quarter Kelly (25% Kelly) para position sizing
-- Max 5% capital por operacao
-- Circuit breakers: -3% reduz 50%, -5% pausa 24h, -7% fecha tudo
-- Drawdown > 20%: desligamento total
-- Max 25% por setor
-
-### Glossario (Ubiquitous Language)
-- ON/PN/Units: tipos de acoes (sufixos 3/4/11)
-- WIN/WDO: mini-indice/mini-dolar
-- DT/ST: Day Trade/Swing Trade
-- DARF: guia recolhimento IR (cod 6015)
-- PM: preco medio ponderado
-- CVaR/ES: Expected Shortfall
-- HMM: Hidden Markov Model (regimes)
-- CPCV: Combinatorial Purged Cross-Validation
+## APIs de Dados de Mercado
+- brapi.dev: cotacoes B3 (REST, Free-Pro)
+- BCB SGS: CDI, IPCA, Selic (REST, gratuito)
+- BCB Focus: expectativas de mercado (OData, gratuito)
+- CVM dados.cvm.gov.br: demonstracoes financeiras (CSV, gratuito)
+- yfinance: historico B3 (sufixo .SA)
 
 ## Skills Disponiveis (Slash Commands)
-- `/review [arquivo]` - Review de codigo com checklist completo (arquitetura, DDD, CQRS, compliance B3)
-- `/test [unit|integration|e2e|all|coverage]` - Executar testes com analise de resultados
+- `/review [arquivo]` - Review de codigo com checklist completo (arquitetura, DDD, CQRS)
+- `/test [unit|integration|e2e|all|coverage]` - Executar testes com analise
 - `/new-entity [entity|vo] [Nome]` - Criar Domain Entity ou Value Object (com TDD)
 - `/new-use-case [command|query] [Nome]` - Criar Use Case seguindo CQRS
 - `/check-architecture` - Verificacao automatica de violacoes arquiteturais
-- `/backtest-report [path]` - Analise critica de resultados de backtest
+- `/analise-carteira [cliente_id]` - Gerar analise completa de carteira de cliente
 
 ## Documentacao Completa
 @docs/INDEX.md
