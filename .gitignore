@@ -1,0 +1,75 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+eggs/
+*.whl
+
+# Virtual Environment
+.venv/
+venv/
+env/
+Include/
+Lib/
+Scripts/
+pyvenv.cfg
+share/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.mutmut-cache/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# OS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Docker
+docker-compose.override.yml
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data
+*.csv
+*.parquet
+*.h5
+*.hdf5
+data/raw/
+data/processed/
+
+# Secrets
+*.pem
+*.key
+credentials.json
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Misc
+nul
