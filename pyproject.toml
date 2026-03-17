@@ -23,6 +23,21 @@ dependencies = [
     "httpx>=0.28.0",
     "structlog>=24.4.0",
     "uuid6>=2024.7.10",
+    # Análise de carteira
+    "pdfplumber>=0.10.0",
+    "anthropic>=0.40.0",
+    "yfinance>=0.2.40",
+    "matplotlib>=3.8.0",
+    "jinja2>=3.1.0",
+    "weasyprint>=61.0",
+    "python-multipart>=0.0.9",
+    # Telegram bot
+    "python-telegram-bot>=21.0",
+    # Assistente module
+    "apscheduler>=3.10.0",
+    "openpyxl>=3.1.0",
+    "msal>=1.31.0",
+    "aiosqlite>=0.20.0",
 ]
 
 [project.optional-dependencies]

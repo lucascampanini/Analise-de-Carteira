@@ -71,5 +71,13 @@ credentials.json
 # Claude Code local settings
 .claude/settings.local.json
 
+# Database local
+*.db
+*.db-shm
+*.db-wal
+
+# Backups locais
+backups/
+
 # Misc
 nul

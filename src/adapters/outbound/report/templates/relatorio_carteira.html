@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório de Análise de Carteira</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Helvetica Neue', Arial, sans-serif; font-size: 10pt; color: #222; background: white; }
+
+  .header { background: linear-gradient(135deg, #1a237e 0%, #283593 100%); color: white; padding: 24px 32px; }
+  .header h1 { font-size: 20pt; font-weight: 700; margin-bottom: 4px; }
+  .header .subtitle { font-size: 10pt; opacity: 0.85; }
+  .header .meta { display: flex; gap: 32px; margin-top: 12px; font-size: 9pt; opacity: 0.9; }
+  .header .meta span { display: flex; flex-direction: column; }
+  .header .meta strong { font-size: 11pt; }
+
+  .section { padding: 20px 32px; border-bottom: 1px solid #e8ecf0; }
+  .section:last-child { border-bottom: none; }
+  .section-title { font-size: 13pt; font-weight: 700; color: #1a237e; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #e8ecf0; }
+
+  .pl-card { background: #f8f9ff; border-left: 4px solid #1a237e; padding: 16px 20px; border-radius: 4px; display: inline-block; }
+  .pl-card .label { font-size: 9pt; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+  .pl-card .value { font-size: 22pt; font-weight: 700; color: #1a237e; }
+
+  .metrics-grid { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 12px; }
+  .metric-card { background: #f8f9ff; border: 1px solid #e0e4ff; border-radius: 6px; padding: 12px 16px; min-width: 130px; flex: 1; }
+  .metric-card .label { font-size: 8pt; color: #888; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+  .metric-card .value { font-size: 14pt; font-weight: 700; color: #1a237e; }
+  .metric-card .sub { font-size: 8pt; color: #666; margin-top: 2px; }
+
+  .score-section { display: flex; align-items: center; gap: 24px; }
+  .score-badge { width: 90px; height: 90px; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+  .score-excelente { background: #e8f5e9; border: 3px solid #4CAF50; color: #1b5e20; }
+  .score-bom       { background: #e8f5e9; border: 3px solid #8BC34A; color: #33691e; }
+  .score-regular   { background: #fff8e1; border: 3px solid #FFEB3B; color: #f57f17; }
+  .score-ruim      { background: #fff3e0; border: 3px solid #FF9800; color: #e65100; }
+  .score-critico   { background: #ffebee; border: 3px solid #F44336; color: #b71c1c; }
+  .score-badge .num { font-size: 22pt; line-height: 1; }
+  .score-badge .lbl { font-size: 7pt; }
+
+  .alerts { margin-top: 8px; }
+  .alert { background: #fff3e0; border-left: 3px solid #FF9800; padding: 8px 12px; margin-bottom: 6px; border-radius: 0 4px 4px 0; font-size: 9pt; color: #5d3a00; }
+  .alert.ok { background: #e8f5e9; border-left-color: #4CAF50; color: #1b5e20; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  th { background: #f0f3ff; color: #1a237e; font-weight: 600; padding: 8px 10px; text-align: left; border-bottom: 2px solid #c5cae9; }
+  td { padding: 7px 10px; border-bottom: 1px solid #f0f0f0; vertical-align: middle; }
+  tr:hover td { background: #fafbff; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 8pt; font-weight: 600; }
+  .badge-acao { background: #e3f2fd; color: #0d47a1; }
+  .badge-fii  { background: #e8f5e9; color: #1b5e20; }
+  .badge-etf  { background: #f3e5f5; color: #4a148c; }
+  .badge-rf   { background: #fff8e1; color: #f57f17; }
+  .badge-bdr  { background: #e0f2f1; color: #004d40; }
+  .badge-fund { background: #fce4ec; color: #880e4f; }
+  .badge-cripto { background: #ede7f6; color: #311b92; }
+
+  .positive { color: #2e7d32; font-weight: 600; }
+  .negative { color: #c62828; font-weight: 600; }
+  .neutral  { color: #555; }
+
+  .rec-table td:first-child { font-weight: 600; }
+  .prioridade-1 { color: #c62828; }
+  .prioridade-2 { color: #e65100; }
+  .prioridade-3 { color: #f57f17; }
+  .prioridade-4 { color: #558b2f; }
+  .prioridade-5 { color: #1565c0; }
+
+  .chart-row { display: flex; gap: 20px; flex-wrap: wrap; margin-top: 12px; }
+  .chart-box { flex: 1; min-width: 280px; text-align: center; }
+  .chart-box img { max-width: 100%; height: auto; }
+
+  .footer { background: #f8f9ff; padding: 12px 32px; font-size: 8pt; color: #888; text-align: center; border-top: 1px solid #e0e4ff; }
+
+  @page { margin: 0; size: A4; }
+</style>
+</head>
+<body>
+
+<!-- CABEÇALHO -->
+<div class="header">
+  <h1>Análise de Carteira de Investimentos</h1>
+  <div class="subtitle">Relatório gerado automaticamente pelo sistema de análise</div>
+  <div class="meta">
+    <span><small>CLIENTE</small><strong>{{ dto.cliente_nome }}</strong></span>
+    <span><small>PERFIL</small><strong>{{ dto.cliente_perfil }}</strong></span>
+    <span><small>OBJETIVO</small><strong>{{ dto.cliente_objetivo }}</strong></span>
+    <span><small>DATA REF.</small><strong>{{ dto.data_referencia }}</strong></span>
+    <span><small>GERADO EM</small><strong>{{ dto.data_geracao }}</strong></span>
+  </div>
+</div>
+
+<!-- PATRIMÔNIO E RESUMO -->
+<div class="section">
+  <div class="section-title">Resumo Patrimonial</div>
+  <div class="pl-card">
+    <div class="label">Patrimônio Líquido</div>
+    <div class="value">R$ {{ "%.2f"|format(dto.analise.patrimonio_liquido)|replace(".", "X")|replace(",", ".")|replace("X", ",") }}</div>
+  </div>
+  <div class="metrics-grid" style="margin-top: 16px;">
+    <div class="metric-card">
+      <div class="label">Total de Ativos</div>
+      <div class="value">{{ dto.analise.posicoes|length }}</div>
+      <div class="sub">posições na carteira</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">Renda Variável</div>
+      <div class="value">{{ "%.1f"|format(dto.analise.percentual_rv or 0) }}%</div>
+      <div class="sub">do patrimônio</div>
+    </div>
+    <div class="metric-card">
+      <div class="label">Renda Fixa</div>
+      <div class="value">{{ "%.1f"|format(dto.analise.percentual_rf or 0) }}%</div>
+      <div class="sub">do patrimônio</div>
+    </div>
+    {% if dto.analise.hhi is not none %}
+    <div class="metric-card">
+      <div class="label">HHI (Concentração)</div>
+      <div class="value">{{ "%.0f"|format(dto.analise.hhi) }}</div>
+      <div class="sub">{{ "Alta" if dto.analise.hhi > 2500 else ("Moderada" if dto.analise.hhi > 1000 else "Baixa") }}</div>
+    </div>
+    {% endif %}
+    {% if dto.analise.volatilidade_anualizada is not none %}
+    <div class="metric-card">
+      <div class="label">Volatilidade Anual</div>
+      <div class="value">{{ "%.1f"|format(dto.analise.volatilidade_anualizada) }}%</div>
+      <div class="sub">desvio padrão anualizado</div>
+    </div>
+    {% endif %}
+    {% if dto.analise.cvar_95 is not none %}
+    <div class="metric-card">
+      <div class="label">CVaR 95%</div>
+      <div class="value {{ 'negative' if dto.analise.cvar_95 < 0 else 'positive' }}">{{ "%.2f"|format(dto.analise.cvar_95) }}%</div>
+      <div class="sub">expected shortfall</div>
+    </div>
+    {% endif %}
+    {% if dto.analise.beta_ibovespa is not none %}
+    <div class="metric-card">
+      <div class="label">Beta vs IBOV</div>
+      <div class="value">{{ "%.2f"|format(dto.analise.beta_ibovespa) }}</div>
+      <div class="sub">sensibilidade ao mercado</div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- SCORE DE ADERÊNCIA -->
+{% if dto.analise.score_aderencia is not none %}
+<div class="section">
+  <div class="section-title">Score de Aderência ao Perfil</div>
+  <div class="score-section">
+    <div class="score-badge score-{{ dto.analise.classificacao_aderencia|lower if dto.analise.classificacao_aderencia else 'regular' }}">
+      <div class="num">{{ "%.0f"|format(dto.analise.score_aderencia) }}</div>
+      <div class="lbl">{{ dto.analise.classificacao_aderencia or "" }}</div>
+    </div>
+    <div>
+      <p style="font-size: 10pt; color: #444;">
+        A carteira apresenta score de aderência <strong>{{ "%.1f"|format(dto.analise.score_aderencia) }}/100</strong>
+        ao perfil <strong>{{ dto.cliente_perfil }}</strong>.
+        {% if dto.analise.precisa_rebalanceamento %}
+        <span style="color: #e65100;">&#9888; Rebalanceamento recomendado.</span>
+        {% else %}
+        <span style="color: #2e7d32;">&#10003; Carteira alinhada ao perfil.</span>
+        {% endif %}
+      </p>
+      {% if dto.analise.alertas_concentracao %}
+      <div class="alerts" style="margin-top: 10px;">
+        {% for alerta in dto.analise.alertas_concentracao %}
+        <div class="alert">&#9888; {{ alerta }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
+    </div>
+    {% if charts.score_gauge %}
+    <div style="margin-left: auto;">
+      <img src="data:image/png;base64,{{ charts.score_gauge }}" style="height: 140px;">
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- ALOCAÇÃO -->
+<div class="section">
+  <div class="section-title">Alocação da Carteira</div>
+  <div class="chart-row">
+    {% if charts.alocacao_classe %}
+    <div class="chart-box">
+      <img src="data:image/png;base64,{{ charts.alocacao_classe }}">
+    </div>
+    {% endif %}
+    {% if charts.alocacao_setor %}
+    <div class="chart-box">
+      <img src="data:image/png;base64,{{ charts.alocacao_setor }}">
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- TOP 5 ATIVOS -->
+{% if dto.analise.top5_ativos %}
+<div class="section">
+  <div class="section-title">Top 5 Maiores Posições</div>
+  <table>
+    <thead><tr><th>#</th><th>Ticker</th><th>Nome</th><th>Classe</th><th>Valor Atual</th><th>% do PL</th></tr></thead>
+    <tbody>
+    {% for ativo in dto.analise.top5_ativos %}
+    <tr>
+      <td>{{ loop.index }}</td>
+      <td><strong>{{ ativo.ticker }}</strong></td>
+      <td>{{ ativo.nome }}</td>
+      <td><span class="badge badge-{{ ativo.classe|lower|replace('_', '-')|replace('renda-fixa','rf')|replace('fundo-investimento','fund') }}">{{ ativo.classe }}</span></td>
+      <td>R$ {{ "%.2f"|format(ativo.valor_atual) }}</td>
+      <td class="{{ 'negative' if ativo.percentual_pl > 20 else 'neutral' }}"><strong>{{ "%.1f"|format(ativo.percentual_pl) }}%</strong></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- POSIÇÕES COMPLETAS -->
+{% if dto.analise.posicoes %}
+<div class="section">
+  <div class="section-title">Posições Completas</div>
+  <table>
+    <thead>
+      <tr><th>Ticker</th><th>Nome</th><th>Classe</th><th>Setor</th><th>Qtd</th><th>P.M. (R$)</th><th>Valor (R$)</th><th>% PL</th><th>Rentab.</th><th>L/P (R$)</th></tr>
+    </thead>
+    <tbody>
+    {% for p in dto.analise.posicoes %}
+    <tr>
+      <td><strong>{{ p.ticker }}</strong></td>
+      <td style="max-width: 150px; overflow: hidden;">{{ p.nome }}</td>
+      <td><span class="badge badge-{{ p.classe|lower|replace('_', '-')|replace('renda-fixa','rf')|replace('fundo-investimento','fund') }}">{{ p.classe }}</span></td>
+      <td style="font-size: 8pt;">{{ p.setor }}</td>
+      <td>{{ "%.2f"|format(p.quantidade) }}</td>
+      <td>{{ "%.2f"|format(p.preco_medio) }}</td>
+      <td><strong>{{ "%.2f"|format(p.valor_atual) }}</strong></td>
+      <td>{{ "%.1f"|format(p.percentual_pl) }}%</td>
+      <td class="{{ 'positive' if p.rentabilidade_percentual >= 0 else 'negative' }}">{{ "%.1f"|format(p.rentabilidade_percentual) }}%</td>
+      <td class="{{ 'positive' if p.lucro_prejuizo >= 0 else 'negative' }}">{{ "%.2f"|format(p.lucro_prejuizo) }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- RENDA FIXA — DETALHES -->
+{% set posicoes_rf = dto.analise.posicoes | selectattr('subtipo_rf') | list %}
+{% if posicoes_rf %}
+<div class="section">
+  <div class="section-title">Renda Fixa — Detalhes por Posição</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Ticker</th>
+        <th>Subtipo</th>
+        <th>Taxa</th>
+        <th>Vencimento</th>
+        <th>Dias</th>
+        <th>Liquidez</th>
+        <th>FGC</th>
+        <th>IR</th>
+        <th>Rating</th>
+        <th>Valor (R$)</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for p in posicoes_rf %}
+    <tr>
+      <td><strong>{{ p.ticker }}</strong></td>
+      <td>{{ p.subtipo_rf or "—" }}</td>
+      <td><strong>{{ p.taxa_rf or "—" }}</strong></td>
+      <td>{{ p.data_vencimento_rf or "—" }}</td>
+      <td class="{{ 'negative' if (p.dias_ate_vencimento is not none and p.dias_ate_vencimento < 0) else ('neutral' if (p.dias_ate_vencimento is not none and p.dias_ate_vencimento <= 90) else '') }}">
+        {% if p.dias_ate_vencimento is not none %}{{ p.dias_ate_vencimento }}d{% else %}—{% endif %}
+      </td>
+      <td style="font-size: 8pt;">{{ p.liquidez_rf or "—" }}</td>
+      <td>
+        {% if p.coberto_fgc is not none %}
+          {% if p.coberto_fgc %}<span style="color: #2e7d32; font-weight: 600;">✓ Coberto</span>{% else %}<span style="color: #888;">Não</span>{% endif %}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if p.isento_ir %}<span style="color: #2e7d32; font-weight: 600;">Isento</span>
+        {% elif p.aliquota_ir is not none %}{{ "%.1f"|format(p.aliquota_ir) }}%
+        {% else %}—{% endif %}
+      </td>
+      <td style="font-size: 8pt;">{{ p.rating or "NR" }}</td>
+      <td><strong>{{ "%.2f"|format(p.valor_atual) }}</strong></td>
+    </tr>
+    {% if p.alertas_rf %}
+    <tr>
+      <td colspan="10" style="padding: 2px 10px 8px 20px; background: #fffbf0;">
+        {% for alerta in p.alertas_rf %}
+        <div style="font-size: 8pt; color: #8b5e00; margin-bottom: 2px;">{{ alerta }}</div>
+        {% endfor %}
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- ALAVANCAGEM (AÇÕES E BDRs) -->
+{% set posicoes_com_alavancagem = dto.analise.posicoes | selectattr('alavancagem') | list %}
+{% if posicoes_com_alavancagem %}
+<style>
+  .risco-baixa      { color: #2e7d32; font-weight: 600; }
+  .risco-moderada   { color: #558b2f; font-weight: 600; }
+  .risco-alta       { color: #e65100; font-weight: 600; }
+  .risco-muito-alta { color: #c62828; font-weight: 600; }
+  .risco-critica    { background: #ffebee; color: #b71c1c; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
+  .risco-caixa      { color: #1565c0; font-weight: 600; }
+</style>
+<div class="section">
+  <div class="section-title">Análise de Alavancagem — Ações e BDRs</div>
+  <table>
+    <thead>
+      <tr>
+        <th>Ticker</th>
+        <th>Empresa</th>
+        <th>Dív. Líq. / EBITDA</th>
+        <th>Dívida / PL (D/E)</th>
+        <th>Cobertura Juros</th>
+        <th>Dív. Líq. (R$ M)</th>
+        <th>EBITDA (R$ M)</th>
+        <th>Risco</th>
+        <th>Referência</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for p in posicoes_com_alavancagem %}
+    {% set alav = p.alavancagem %}
+    {% set nivel = alav.nivel_risco | lower | replace(' ', '-') %}
+    <tr>
+      <td><strong>{{ p.ticker }}</strong></td>
+      <td style="max-width: 130px; font-size: 8.5pt;">{{ p.nome }}</td>
+      <td class="risco-{{ nivel }}">
+        {% if alav.divida_liquida_ebitda is not none %}
+          {{ "%.1f"|format(alav.divida_liquida_ebitda) }}x
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if alav.divida_bruta_pl is not none %}
+          {{ "%.2f"|format(alav.divida_bruta_pl) }}x
+        {% else %}—{% endif %}
+      </td>
+      <td class="{{ 'negative' if (alav.cobertura_juros is not none and alav.cobertura_juros < 2.0) else '' }}">
+        {% if alav.cobertura_juros is not none %}
+          {{ "%.1f"|format(alav.cobertura_juros) }}x
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if alav.divida_liquida_milhoes is not none %}
+          {{ "%.0f"|format(alav.divida_liquida_milhoes) }}
+        {% else %}—{% endif %}
+      </td>
+      <td>
+        {% if alav.ebitda_milhoes is not none %}
+          {{ "%.0f"|format(alav.ebitda_milhoes) }}
+        {% else %}—{% endif %}
+      </td>
+      <td><span class="risco-{{ nivel }}">{{ alav.nivel_risco }}</span></td>
+      <td style="font-size: 8pt; color: #888;">{{ alav.data_referencia or "—" }}</td>
+    </tr>
+    {% if alav.alertas %}
+    <tr>
+      <td colspan="9" style="padding: 2px 10px 8px 20px; background: #fffbf0;">
+        {% for alerta in alav.alertas %}
+        <div style="font-size: 8pt; color: #8b5e00; margin-bottom: 2px;">{{ alerta }}</div>
+        {% endfor %}
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+    </tbody>
+  </table>
+  <p style="font-size: 7.5pt; color: #888; margin-top: 8px;">
+    Fonte: yfinance (últimos relatórios trimestrais/anuais). Dív. Líq. = Dívida Bruta − Caixa.
+    Cobertura de Juros = EBIT / Despesas Financeiras. Valores em R$ milhões.
+  </p>
+</div>
+{% endif %}
+
+<!-- RECOMENDAÇÕES -->
+{% if dto.analise.recomendacoes %}
+<div class="section">
+  <div class="section-title">Recomendações de Rebalanceamento</div>
+  <table class="rec-table">
+    <thead>
+      <tr><th>Prior.</th><th>Ação</th><th>Ativo</th><th>Justificativa</th><th>Impacto Tributário</th><th>% Sugerido</th></tr>
+    </thead>
+    <tbody>
+    {% for rec in dto.analise.recomendacoes %}
+    <tr>
+      <td class="prioridade-{{ rec.prioridade }}"><strong>P{{ rec.prioridade }}</strong></td>
+      <td><strong>{{ rec.tipo }}</strong></td>
+      <td>{{ rec.ticker }}</td>
+      <td style="font-size: 8pt; max-width: 200px;">{{ rec.justificativa }}</td>
+      <td style="font-size: 8pt; max-width: 160px; color: #666;">{{ rec.impacto_tributario }}</td>
+      <td>{% if rec.percentual_sugerido is not none %}{{ "%.0f"|format(rec.percentual_sugerido) }}%{% else %}—{% endif %}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endif %}
+
+<!-- FOOTER -->
+<div class="footer">
+  Relatório gerado em {{ dto.data_geracao }} | Sistema de Análise de Carteira |
+  As análises apresentadas são baseadas em dados históricos e não constituem recomendação de investimento.
+  Rentabilidade passada não garante rentabilidade futura. Consulte seu assessor.
+</div>
+
+</body>
+</html>
