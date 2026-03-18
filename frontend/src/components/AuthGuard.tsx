@@ -2,21 +2,20 @@
 import { useEffect } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
+import { Sidebar } from "@/components/layout/sidebar";
 
 export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
-  const router  = useRouter();
+  const router   = useRouter();
   const pathname = usePathname();
+
+  const isLogin = pathname === "/login" || pathname === "/login/";
 
   useEffect(() => {
     if (loading) return;
-    if (!user && pathname !== "/login") {
-      router.replace("/login");
-    }
-    if (user && pathname === "/login") {
-      router.replace("/");
-    }
-  }, [user, loading, pathname, router]);
+    if (!user && !isLogin) router.replace("/login");
+    if (user  &&  isLogin) router.replace("/");
+  }, [user, loading, isLogin, router]);
 
   if (loading) {
     return (
@@ -26,7 +25,17 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!user && pathname !== "/login") return null;
+  // Página de login — sem sidebar
+  if (isLogin) return <>{children}</>;
 
-  return <>{children}</>;
+  // Não autenticado — blank enquanto o redirect ocorre
+  if (!user) return null;
+
+  // Autenticado — sidebar + conteúdo
+  return (
+    <>
+      <Sidebar />
+      <main className="ml-56 min-h-screen p-6">{children}</main>
+    </>
+  );
 }

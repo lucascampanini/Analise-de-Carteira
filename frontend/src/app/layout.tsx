@@ -18,19 +18,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className={`${inter.className} bg-slate-50`}>
         <AuthProvider>
           <AuthGuard>
-            <LayoutInner>{children}</LayoutInner>
+            {children}
           </AuthGuard>
         </AuthProvider>
       </body>
     </html>
-  );
-}
-
-function LayoutInner({ children }: { children: React.ReactNode }) {
-  return (
-    <>
-      <Sidebar />
-      <main className="ml-56 min-h-screen p-6">{children}</main>
-    </>
   );
 }
