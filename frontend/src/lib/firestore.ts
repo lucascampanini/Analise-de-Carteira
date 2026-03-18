@@ -251,3 +251,73 @@ export async function importarClientesOferta(uid: string, ofertaId: string, clie
   }
   return clientes.length;
 }
+
+// ──────────────────────────────────────────────
+// POSIÇÕES DE CARTEIRA (Diversificador)
+// ──────────────────────────────────────────────
+export async function getPosicoes(uid: string, conta?: string) {
+  const snap = await getDocs(col(uid, "posicoes"));
+  let list = snap2arr(snap);
+  if (conta) list = list.filter((p: any) => p.codigo_conta === conta);
+  return list.sort((a: any, b: any) => (b.valor || 0) - (a.valor || 0));
+}
+
+export async function importarPosicoes(uid: string, conta: string, posicoes: any[]) {
+  // Apaga posições existentes deste cliente e reimporta
+  const existing = await getDocs(col(uid, "posicoes"));
+  const doConta = existing.docs.filter((d) => d.data().codigo_conta === conta);
+  const chunks = [];
+  for (let i = 0; i < doConta.length; i += 400)
+    chunks.push(doConta.slice(i, i + 400));
+  for (const chunk of chunks) {
+    const b = writeBatch(db);
+    chunk.forEach((d) => b.delete(d.ref));
+    await b.commit();
+  }
+  // Insere novas
+  const newChunks = [];
+  for (let i = 0; i < posicoes.length; i += 400)
+    newChunks.push(posicoes.slice(i, i + 400));
+  for (const chunk of newChunks) {
+    const b = writeBatch(db);
+    chunk.forEach((p) => {
+      const ref = doc(col(uid, "posicoes"));
+      b.set(ref, { ...p, codigo_conta: conta, importado_em: new Date().toISOString() });
+    });
+    await b.commit();
+  }
+  return posicoes.length;
+}
+
+export async function importarPosicoesMulti(uid: string, posicoes: any[]) {
+  // Import bulk com múltiplos clientes (tem codigo_conta em cada linha)
+  const contas = [...new Set(posicoes.map((p) => p.codigo_conta))];
+  // Apaga todas as posições existentes dos clientes afetados
+  const existing = await getDocs(col(uid, "posicoes"));
+  const para_deletar = existing.docs.filter((d) => contas.includes(d.data().codigo_conta));
+  for (let i = 0; i < para_deletar.length; i += 400) {
+    const b = writeBatch(db);
+    para_deletar.slice(i, i + 400).forEach((d) => b.delete(d.ref));
+    await b.commit();
+  }
+  // Insere novas
+  for (let i = 0; i < posicoes.length; i += 400) {
+    const b = writeBatch(db);
+    posicoes.slice(i, i + 400).forEach((p) => {
+      const ref = doc(col(uid, "posicoes"));
+      b.set(ref, { ...p, importado_em: new Date().toISOString() });
+    });
+    await b.commit();
+  }
+  return posicoes.length;
+}
+
+export async function deletarPosicoesCliente(uid: string, conta: string) {
+  const existing = await getDocs(col(uid, "posicoes"));
+  const doConta = existing.docs.filter((d) => d.data().codigo_conta === conta);
+  for (let i = 0; i < doConta.length; i += 400) {
+    const b = writeBatch(db);
+    doConta.slice(i, i + 400).forEach((d) => b.delete(d.ref));
+    await b.commit();
+  }
+}

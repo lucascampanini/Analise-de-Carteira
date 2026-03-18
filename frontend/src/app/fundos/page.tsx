@@ -1,136 +1,457 @@
 "use client";
-import { useEffect, useState } from "react";
-import { getFundos } from "@/lib/api";
+import { useEffect, useRef, useState, useCallback } from "react";
+import { useAuth } from "@/contexts/AuthContext";
+import { getClientes, getPosicoes, importarPosicoes, importarPosicoesMulti, deletarPosicoesCliente } from "@/lib/firestore";
 import { brl } from "@/lib/formatters";
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import * as XLSX from "xlsx";
 
-const PRAZO_COR: Record<string, string> = {
-  "—":    "bg-slate-100 text-slate-400",
-  "D+0":  "bg-emerald-100 text-emerald-700",
-  "D+1":  "bg-emerald-100 text-emerald-700",
-  "D+2":  "bg-blue-100 text-blue-700",
-  "D+3":  "bg-blue-100 text-blue-700",
+const CLASSE_COR: Record<string, string> = {
+  "Renda Fixa":     "#3b82f6",
+  "Renda Variável": "#8b5cf6",
+  "Fundos":         "#f59e0b",
+  "Previdência":    "#ec4899",
+  "FII":            "#10b981",
+  "Outros":         "#94a3b8",
 };
 
-function prazoCor(prazo: string): string {
-  if (prazo === "—") return "bg-slate-100 text-slate-400";
-  const total = parseInt(prazo.split("/").pop()?.replace("D+", "") || "999");
-  if (total <= 1)  return "bg-emerald-100 text-emerald-700";
-  if (total <= 3)  return "bg-blue-100 text-blue-700";
-  if (total <= 15) return "bg-amber-100 text-amber-700";
-  return "bg-red-100 text-red-700";
+const LIQUIDEZ_BUCKETS = [
+  { label: "D+0 a D+1",   max: 1,    cor: "#10b981" },
+  { label: "D+2 a D+5",   max: 5,    cor: "#3b82f6" },
+  { label: "D+6 a D+30",  max: 30,   cor: "#f59e0b" },
+  { label: "D+31 a D+90", max: 90,   cor: "#f97316" },
+  { label: "D+91+",       max: 9999, cor: "#ef4444" },
+];
+
+function normalizeClasse(raw: string): string {
+  const s = (raw || "").toLowerCase();
+  if (s.includes("prev"))                                                              return "Previdência";
+  if (s.includes("imobili") || s.includes("fii"))                                     return "FII";
+  if (s.includes("fix") || s.includes(" rf"))                                         return "Renda Fixa";
+  if (s.includes("vari") || s.includes(" rv") || s.includes("bdr") || s.includes("etf")) return "Renda Variável";
+  if (s.includes("fund") || s.includes("fim") || s.includes("fic"))                  return "Fundos";
+  return "Outros";
 }
 
-export default function FundosPage() {
-  const [fundos, setFundos]         = useState<any[]>([]);
-  const [busca, setBusca]           = useState("");
-  const [filtroTipo, setFiltroTipo] = useState("TODOS");
-  useEffect(() => { getFundos().then(setFundos).catch(() => {}); }, []);
+function parseLiquidez(raw: string): number {
+  if (!raw) return 9999;
+  const s = raw.toString().toLowerCase().replace(/\s/g, "");
+  if (s === "vencimento") return 9999;
+  const parts = s.split("/");
+  const last = parts[parts.length - 1];
+  const m = last.match(/d?\+?(\d+)/);
+  return m ? parseInt(m[1]) : 9999;
+}
 
-  const tipos = ["TODOS", ...Array.from(new Set(fundos.map((f) => f.tipo))).sort()];
+function liquidezBucket(dias: number): string {
+  for (const b of LIQUIDEZ_BUCKETS) {
+    if (dias <= b.max) return b.label;
+  }
+  return "D+91+";
+}
 
-  const filtrados = fundos.filter((f) => {
-    const okTipo = filtroTipo === "TODOS" || f.tipo === filtroTipo;
-    const okBusca = !busca || [f.fundo, f.nome_cliente, f.gestora].some(
-      (s) => s?.toLowerCase().includes(busca.toLowerCase())
-    );
-    return okTipo && okBusca;
-  });
+function mapCol(headers: string[], ...opts: string[]) {
+  return headers.find((h) =>
+    opts.some((o) =>
+      h.toLowerCase().replace(/[^a-z0-9]/g, "").includes(o.toLowerCase().replace(/[^a-z0-9]/g, ""))
+    )
+  );
+}
 
-  const semPrazo = filtrados.filter((f) => f.prazo_fmt === "—").length;
+function parseExcel(rows: any[], contaFixa?: string) {
+  if (rows.length === 0) return [];
+  const headers = Object.keys(rows[0]);
+  const colConta  = mapCol(headers, "codigodaconta", "codigoconta", "conta", "codigo");
+  const colAtivo  = mapCol(headers, "produto", "ativo", "fundo", "descricao", "papel", "titulo");
+  const colClasse = mapCol(headers, "classe", "tipo", "categoria", "tipodeativos", "segmento");
+  const colTipo   = mapCol(headers, "subtipo", "subclasse", "tipodeproduto", "estrategia");
+  const colGest   = mapCol(headers, "gestora", "gestor", "administrador");
+  const colValor  = mapCol(headers, "valorliquido", "valorbrutodeativos", "valorbruto", "saldo", "valor", "pl");
+  const colLiq    = mapCol(headers, "prazoderesgate", "liquidez", "prazo", "resgate");
+  const colRent   = mapCol(headers, "rentabilidade12m", "rent12m", "rentabilidade");
+
+  return rows
+    .map((r: any) => {
+      const valor = parseFloat(
+        String(r[colValor!] ?? "0").replace(/[^0-9.,-]/g, "").replace(",", ".")
+      ) || 0;
+      if (!valor || valor < 0.01) return null;
+      const conta = contaFixa || (colConta ? String(r[colConta] || "").trim() : "");
+      const rawLiq = colLiq ? String(r[colLiq] || "") : "";
+      const diasLiq = parseLiquidez(rawLiq);
+      return {
+        codigo_conta:    conta,
+        ativo:           colAtivo  ? String(r[colAtivo]  || "—").trim() : "—",
+        classe:          normalizeClasse(colClasse ? String(r[colClasse] || "") : ""),
+        tipo:            colTipo   ? String(r[colTipo]   || "").trim()  : "",
+        gestora:         colGest   ? String(r[colGest]   || "").trim()  : "",
+        valor,
+        liquidez_raw:    rawLiq || "—",
+        liquidez_dias:   diasLiq,
+        liquidez_bucket: liquidezBucket(diasLiq),
+        rent_12m: colRent ? (parseFloat(String(r[colRent] || "0").replace(",", ".")) || null) : null,
+      };
+    })
+    .filter(Boolean) as any[];
+}
+
+function calcAnalise(posicoes: any[]) {
+  const pl = posicoes.reduce((s, p) => s + p.valor, 0);
+  if (pl === 0) return null;
+
+  const porClasse: Record<string, number> = {};
+  posicoes.forEach((p) => { porClasse[p.classe] = (porClasse[p.classe] || 0) + p.valor; });
+  const alocacao = Object.entries(porClasse)
+    .map(([classe, valor]) => ({ classe, valor, pct: (valor / pl) * 100 }))
+    .sort((a, b) => b.valor - a.valor);
+
+  const porBucket: Record<string, number> = {};
+  posicoes.forEach((p) => { porBucket[p.liquidez_bucket] = (porBucket[p.liquidez_bucket] || 0) + p.valor; });
+  const liquidez = LIQUIDEZ_BUCKETS.map((b) => ({
+    label: b.label, cor: b.cor,
+    valor: porBucket[b.label] || 0,
+    pct:   ((porBucket[b.label] || 0) / pl) * 100,
+  }));
+
+  const hhi = posicoes.reduce((s, p) => s + Math.pow((p.valor / pl) * 100, 2), 0);
+  const nEfetivo = hhi > 0 ? Math.round(10000 / hhi) : 0;
+  const pctLiquido = posicoes.filter((p) => p.liquidez_dias <= 5).reduce((s, p) => s + p.valor, 0) / pl * 100;
+  const top5 = [...posicoes].sort((a, b) => b.valor - a.valor).slice(0, 5).map((p) => ({ ...p, pct: (p.valor / pl) * 100 }));
+
+  return { pl, alocacao, liquidez, hhi: Math.round(hhi), nEfetivo, pctLiquido, top5 };
+}
+
+function DonutAlocacao({ data }: { data: any[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <PieChart>
+        <Pie data={data} dataKey="valor" cx="50%" cy="50%" innerRadius={55} outerRadius={90}
+          paddingAngle={2} label={({ pct }: any) => `${pct.toFixed(0)}%`} labelLine={false}>
+          {data.map((entry) => <Cell key={entry.classe} fill={CLASSE_COR[entry.classe] || "#94a3b8"} />)}
+        </Pie>
+        <Tooltip formatter={(v: any) => brl(v)} />
+      </PieChart>
+    </ResponsiveContainer>
+  );
+}
+
+function BarLiquidez({ data }: { data: any[] }) {
+  return (
+    <ResponsiveContainer width="100%" height={220}>
+      <BarChart data={data} margin={{ top: 5, right: 5, left: 0, bottom: 40 }}>
+        <XAxis dataKey="label" tick={{ fontSize: 10 }} angle={-30} textAnchor="end" interval={0} />
+        <YAxis tickFormatter={(v) => `${v.toFixed(0)}%`} tick={{ fontSize: 10 }} />
+        <Tooltip formatter={(v: any, _n: any, props: any) => [brl(props.payload.valor), "Valor"]} />
+        <Bar dataKey="pct" radius={[4, 4, 0, 0]}>
+          {data.map((entry) => <Cell key={entry.label} fill={entry.cor} />)}
+        </Bar>
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+
+export default function CarteiraDiversificacaoPage() {
+  const { user } = useAuth();
+  const [clientes,   setClientes]   = useState<any[]>([]);
+  const [posicoes,   setPosicoes]   = useState<any[]>([]);
+  const [conta,      setConta]      = useState("");
+  const [busca,      setBusca]      = useState("");
+  const [importando, setImportando] = useState(false);
+  const [msgImport,  setMsgImport]  = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const loadPosicoes = useCallback(async () => {
+    if (!user) return;
+    const pos = await getPosicoes(user.uid);
+    setPosicoes(pos);
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    Promise.all([getClientes(user.uid), getPosicoes(user.uid)]).then(([cls, pos]) => {
+      setClientes(cls);
+      setPosicoes(pos);
+      if (cls.length > 0) setConta(cls[0].codigo_conta);
+    });
+  }, [user]);
+
+  const importarExcel = async (file: File) => {
+    if (!user) return;
+    setImportando(true);
+    setMsgImport("");
+    try {
+      const buf  = await file.arrayBuffer();
+      const wb   = XLSX.read(buf, { type: "array" });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
+      if (rows.length === 0) { setMsgImport("Planilha vazia."); return; }
+
+      const headers  = Object.keys(rows[0]);
+      const temConta = !!mapCol(headers, "codigodaconta", "codigoconta", "conta", "codigo");
+
+      if (temConta) {
+        const parsed = parseExcel(rows).filter((p) => p.codigo_conta);
+        const n = await importarPosicoesMulti(user.uid, parsed);
+        const nContas = new Set(parsed.map((p) => p.codigo_conta)).size;
+        setMsgImport(`${n} posições importadas (${nContas} clientes)!`);
+      } else {
+        if (!conta) { setMsgImport("Selecione um cliente primeiro."); return; }
+        const parsed = parseExcel(rows, conta);
+        const n = await importarPosicoes(user.uid, conta, parsed);
+        setMsgImport(`${n} posições importadas para ${conta}!`);
+      }
+      await loadPosicoes();
+    } catch (err: any) {
+      setMsgImport(`Erro: ${err.message}`);
+    } finally {
+      setImportando(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  const deletarCliente = async () => {
+    if (!user || !conta || !confirm(`Remover todas as posições de ${conta}?`)) return;
+    await deletarPosicoesCliente(user.uid, conta);
+    await loadPosicoes();
+    setMsgImport("Posições removidas.");
+  };
+
+  const contasComPos  = [...new Set(posicoes.map((p) => p.codigo_conta))];
+  const posBruta      = posicoes.filter((p) => p.codigo_conta === conta);
+  const posFiltradas  = posBruta.filter(
+    (p) => !busca ||
+      p.ativo.toLowerCase().includes(busca.toLowerCase()) ||
+      p.classe.toLowerCase().includes(busca.toLowerCase()) ||
+      (p.gestora || "").toLowerCase().includes(busca.toLowerCase())
+  );
+  const analise     = calcAnalise(posBruta);
+  const clienteInfo = clientes.find((c) => c.codigo_conta === conta);
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Fundos de Investimento</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            {filtrados.length} posições{semPrazo > 0 ? ` · ${semPrazo} sem prazo cadastrado` : ""}
+          <h1 className="text-2xl font-bold text-slate-800">Análise de Carteira</h1>
+          <p className="text-slate-500 text-sm">Diversificação · Liquidez · Concentração</p>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {msgImport && (
+            <span className={`text-xs ${msgImport.startsWith("Erro") ? "text-red-600" : "text-emerald-600"}`}>
+              {msgImport}
+            </span>
+          )}
+          <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
+            onChange={(e) => e.target.files?.[0] && importarExcel(e.target.files[0])} />
+          <button onClick={() => fileRef.current?.click()} disabled={importando}
+            className="text-xs bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            {importando ? "Importando..." : "⬆ Importar Excel"}
+          </button>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 p-4 flex items-center gap-4 flex-wrap">
+        <div className="flex items-center gap-2">
+          <label className="text-sm font-medium text-slate-600 shrink-0">Cliente</label>
+          <select value={conta} onChange={(e) => { setConta(e.target.value); setBusca(""); }}
+            className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[220px]">
+            <option value="">— selecione —</option>
+            {clientes.map((c) => (
+              <option key={c.codigo_conta} value={c.codigo_conta}>
+                {c.nome} ({c.codigo_conta}){contasComPos.includes(c.codigo_conta) ? " ✓" : ""}
+              </option>
+            ))}
+          </select>
+        </div>
+        {clienteInfo && (
+          <div className="flex items-center gap-4 text-sm text-slate-500">
+            <span>NET: <strong className="text-slate-800">{brl(clienteInfo.net)}</strong></span>
+            {analise && <span>Importado: <strong className="text-slate-800">{brl(analise.pl)}</strong></span>}
+          </div>
+        )}
+        {conta && contasComPos.includes(conta) && (
+          <button onClick={deletarCliente} className="ml-auto text-xs text-red-400 hover:text-red-600 transition-colors">
+            Limpar posições
+          </button>
+        )}
+      </div>
+
+      {!analise ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-16 text-center">
+          <p className="text-slate-400 text-sm">
+            {clientes.length === 0 ? "Importe clientes primeiro na página Clientes."
+              : conta ? "Nenhuma posição. Importe o Excel de posições (XP Diversificador ou extrato individual)."
+              : "Selecione um cliente para ver a análise."}
+          </p>
+          <p className="text-xs text-slate-300 mt-2">
+            Dica: planilha com coluna de conta importa múltiplos clientes de uma vez.
           </p>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+            {[
+              { label: "PL Importado",     value: brl(analise.pl),                     cor: "text-slate-800" },
+              { label: "Nº de Ativos",     value: `${posBruta.length}`,               cor: "text-slate-800" },
+              { label: "HHI Concentração", value: analise.hhi.toLocaleString("pt-BR"), cor: analise.hhi > 2500 ? "text-red-600" : analise.hhi > 1000 ? "text-amber-600" : "text-emerald-600" },
+              { label: "Líquido ≤ D+5",   value: `${analise.pctLiquido.toFixed(1)}%`, cor: analise.pctLiquido >= 20 ? "text-emerald-600" : "text-amber-600" },
+            ].map((k) => (
+              <div key={k.label} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
+                <p className="text-xs text-slate-500">{k.label}</p>
+                <p className={`text-xl font-bold ${k.cor}`}>{k.value}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-slate-400 px-1">
+            HHI: <span className="text-emerald-600 font-medium">&lt; 1000 diversificado</span>
+            {" · "}<span className="text-amber-600 font-medium">1000–2500 moderado</span>
+            {" · "}<span className="text-red-600 font-medium">&gt; 2500 concentrado</span>
+            <span className="ml-4">N° efetivo de ativos: <strong className="text-slate-700">{analise.nEfetivo}</strong></span>
+          </p>
 
-      {/* Filtros */}
-      <div className="flex flex-wrap gap-3">
-        <input
-          type="text"
-          placeholder="Buscar fundo, cliente ou gestora..."
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 w-72"
-        />
-        <div className="flex gap-1 flex-wrap">
-          {tipos.map((t) => (
-            <button
-              key={t}
-              onClick={() => setFiltroTipo(t)}
-              className={`text-xs px-3 py-1.5 rounded-full border transition-colors ${
-                filtroTipo === t
-                  ? "bg-blue-600 text-white border-blue-600"
-                  : "border-slate-200 text-slate-500 hover:border-slate-400"
-              }`}
-            >
-              {t}
-            </button>
-          ))}
-        </div>
-      </div>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h2 className="font-semibold text-slate-800 mb-1">Alocação por Classe</h2>
+              <DonutAlocacao data={analise.alocacao} />
+              <div className="mt-3 space-y-1">
+                {analise.alocacao.map((a) => (
+                  <div key={a.classe} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: CLASSE_COR[a.classe] || "#94a3b8" }} />
+                      <span className="text-slate-600">{a.classe}</span>
+                    </div>
+                    <div className="flex gap-3">
+                      <span className="font-semibold text-slate-800">{a.pct.toFixed(1)}%</span>
+                      <span className="text-slate-400 w-24 text-right">{brl(a.valor)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-      {/* Tabela */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wide bg-slate-50">
-                <th className="px-5 py-3 text-left">Fundo</th>
-                <th className="px-5 py-3 text-left">Cliente</th>
-                <th className="px-5 py-3 text-left">Tipo</th>
-                <th className="px-5 py-3 text-left">Gestora</th>
-                <th className="px-5 py-3 text-center">Prazo Resgate</th>
-                <th className="px-5 py-3 text-right">Valor</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {filtrados.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center text-slate-400 text-sm">
-                    Nenhum fundo encontrado. Importe o Diversificador primeiro.
-                  </td>
-                </tr>
-              ) : (
-                filtrados.map((f, i) => (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-3">
-                      <p className="font-medium text-slate-800 max-w-xs truncate">{f.fundo || "—"}</p>
-                      {f.cnpj && <p className="text-xs text-slate-400">{f.cnpj}</p>}
-                    </td>
-                    <td className="px-5 py-3">
-                      <p className="text-slate-700">{f.nome_cliente || "—"}</p>
-                      <p className="text-xs text-slate-400">{f.codigo_conta}</p>
-                    </td>
-                    <td className="px-5 py-3">
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">
-                        {f.tipo}
-                      </span>
-                      {f.classe === "PREV" && (
-                        <span className="ml-1 text-xs px-2 py-0.5 rounded-full bg-pink-100 text-pink-700">Prev</span>
-                      )}
-                    </td>
-                    <td className="px-5 py-3 text-slate-600 text-xs">{f.gestora || "—"}</td>
-                    <td className="px-5 py-3 text-center">
-                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${prazoCor(f.prazo_fmt)}`}>
-                        {f.prazo_fmt}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3 text-right font-semibold text-slate-800">
-                      {brl(f.valor)}
-                    </td>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+              <h2 className="font-semibold text-slate-800 mb-1">Perfil de Liquidez</h2>
+              <BarLiquidez data={analise.liquidez} />
+              <div className="mt-1 space-y-1">
+                {analise.liquidez.filter((l) => l.valor > 0).map((l) => (
+                  <div key={l.label} className="flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: l.cor }} />
+                      <span className="text-slate-600">{l.label}</span>
+                    </div>
+                    <div className="flex gap-3">
+                      <span className="font-semibold text-slate-800">{l.pct.toFixed(1)}%</span>
+                      <span className="text-slate-400 w-24 text-right">{brl(l.valor)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+            <h2 className="font-semibold text-slate-800 mb-3">Top 5 Posições</h2>
+            <div className="space-y-3">
+              {analise.top5.map((p, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <span className="text-xs text-slate-400 w-4 shrink-0">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1 gap-2">
+                      <span className="text-sm font-medium text-slate-800 truncate">{p.ativo}</span>
+                      <div className="flex items-center gap-3 shrink-0">
+                        <span className="text-xs text-slate-400">{p.gestora || p.classe}</span>
+                        <span className="text-xs font-semibold text-slate-700 w-10 text-right">{p.pct.toFixed(1)}%</span>
+                        <span className="text-sm font-bold text-slate-800 w-28 text-right">{brl(p.valor)}</span>
+                      </div>
+                    </div>
+                    <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${p.pct}%`, background: CLASSE_COR[p.classe] || "#94a3b8" }} />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-3">
+              <h2 className="font-semibold text-slate-800 shrink-0">Todas as Posições</h2>
+              <input value={busca} onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar ativo, classe ou gestora..."
+                className="flex-1 max-w-sm border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              <span className="text-xs text-slate-400 ml-auto shrink-0">{posFiltradas.length} posições</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 border-b border-slate-200">
+                  <tr>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Ativo / Produto</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Classe</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Gestora</th>
+                    <th className="text-center px-4 py-3 font-semibold text-slate-600">Liquidez</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Rent. 12m</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600">Valor</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600">%</th>
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {posFiltradas.map((p, i) => {
+                    const pct = (p.valor / analise.pl) * 100;
+                    const liqCor = p.liquidez_dias <= 1  ? "bg-emerald-100 text-emerald-700"
+                                 : p.liquidez_dias <= 5  ? "bg-blue-100 text-blue-700"
+                                 : p.liquidez_dias <= 30 ? "bg-amber-100 text-amber-700"
+                                 :                         "bg-red-100 text-red-600";
+                    return (
+                      <tr key={i} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-4 py-3">
+                          <p className="font-medium text-slate-800 max-w-xs truncate">{p.ativo}</p>
+                          {p.tipo && <p className="text-xs text-slate-400">{p.tipo}</p>}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium"
+                            style={{ background: (CLASSE_COR[p.classe] || "#94a3b8") + "22", color: CLASSE_COR[p.classe] || "#64748b" }}>
+                            {p.classe}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-xs text-slate-500">{p.gestora || "—"}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${liqCor}`}>
+                            {p.liquidez_raw || "—"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-right text-xs">
+                          {p.rent_12m != null
+                            ? <span className={p.rent_12m >= 0 ? "text-emerald-600 font-medium" : "text-red-600 font-medium"}>{p.rent_12m.toFixed(2)}%</span>
+                            : <span className="text-slate-300">—</span>}
+                        </td>
+                        <td className="px-4 py-3 text-right font-semibold text-slate-800">{brl(p.valor)}</td>
+                        <td className="px-4 py-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                              <div className="h-full rounded-full" style={{ width: `${Math.min(pct, 100)}%`, background: CLASSE_COR[p.classe] || "#94a3b8" }} />
+                            </div>
+                            <span className="text-xs text-slate-500 w-10 text-right">{pct.toFixed(1)}%</span>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+                <tfoot>
+                  <tr className="bg-slate-50 border-t-2 border-slate-200">
+                    <td colSpan={5} className="px-4 py-3 text-xs font-semibold text-slate-500 uppercase">
+                      Total ({posFiltradas.length} posições)
+                    </td>
+                    <td className="px-4 py-3 text-right font-bold text-slate-800">
+                      {brl(posFiltradas.reduce((s, p) => s + p.valor, 0))}
+                    </td>
+                    <td className="px-4 py-3 text-right text-xs font-medium text-slate-500">100%</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
