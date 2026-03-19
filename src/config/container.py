@@ -12,6 +12,7 @@ from src.adapters.outbound.market_data.yfinance_fundamentals_provider import (
 from src.adapters.outbound.market_data.yfinance_historical_provider import (
     YFinanceHistoricalProvider,
 )
+from src.adapters.outbound.excel_parser.openpyxl_carteira_parser import OpenpyxlCarteiraParser
 from src.adapters.outbound.pdf_parser.pdfplumber_claude_parser import PdfPlumberClaudeParser
 from src.adapters.outbound.persistence.sqlalchemy.repositories.sqlalchemy_analysis_repository import (
     SqlAlchemyAnalysisRepository,
@@ -44,6 +45,9 @@ from src.application.handlers.command_handlers.consolidar_carteiras_handler impo
 )
 from src.application.handlers.command_handlers.processar_extrato_handler import (
     ProcessarExtratoHandler,
+)
+from src.application.handlers.command_handlers.processar_excel_handler import (
+    ProcessarExcelHandler,
 )
 from src.application.handlers.query_handlers.get_analysis_handler import (
     CompareCompaniesHandler,
@@ -103,6 +107,7 @@ class Container:
         self.pdf_parser = PdfPlumberClaudeParser(
             anthropic_api_key=settings.anthropic_api_key,
         )
+        self.excel_parser = OpenpyxlCarteiraParser()
         self.historical_price_provider = YFinanceHistoricalProvider()
         self.fundamentals_provider = YFinanceFundamentalsProvider()
         self.report_generator = WeasyPrintReportGenerator()
@@ -136,6 +141,12 @@ class Container:
         )
         self.processar_extrato_handler = ProcessarExtratoHandler(
             pdf_parser=self.pdf_parser,
+            cliente_repository=self.cliente_repository,
+            carteira_repository=self.carteira_repository,
+            analisar_handler=self.analisar_carteira_handler,
+        )
+        self.processar_excel_handler = ProcessarExcelHandler(
+            excel_parser=self.excel_parser,
             cliente_repository=self.cliente_repository,
             carteira_repository=self.carteira_repository,
             analisar_handler=self.analisar_carteira_handler,

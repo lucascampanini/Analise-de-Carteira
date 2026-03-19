@@ -86,6 +86,21 @@ function ClientePerfil({ conta, clientes, onVoltar }: { conta: string; clientes:
 }
 
 // ── Lista de clientes ────────────────────────────────────────────────────────
+/** Lê um arquivo Excel e retorna as linhas como array de objetos. */
+async function lerExcel(file: File): Promise<any[]> {
+  const buf = await file.arrayBuffer();
+  const wb  = XLSX.read(buf, { type: "array" });
+  const ws  = wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
+}
+
+/** Converte valor numérico/string do Excel para float. */
+function parseNet(v: any): number {
+  if (v === null || v === undefined || v === "") return 0;
+  if (typeof v === "number") return v;
+  return parseFloat(String(v).replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0;
+}
+
 function ClientesLista({
   clientes, load, onSelectConta,
 }: {
@@ -99,47 +114,101 @@ function ClientesLista({
   const [importando, setImportando] = useState(false);
   const [msgImport, setMsgImport]   = useState("");
   const [mostrarAniv, setMostrarAniv] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
-  const importarExcel = async (file: File) => {
-    if (!user) return;
+  // Dois arquivos separados
+  const [fileRelatorio,   setFileRelatorio]   = useState<File | null>(null);
+  const [filePositivador, setFilePositivador] = useState<File | null>(null);
+  const refRelatorio   = useRef<HTMLInputElement>(null);
+  const refPositivador = useRef<HTMLInputElement>(null);
+
+  const podeImportar = !!fileRelatorio && !!filePositivador && !importando;
+
+  const importarDoisExcels = async () => {
+    if (!user || !fileRelatorio || !filePositivador) return;
     setImportando(true);
     setMsgImport("");
     try {
-      const buf  = await file.arrayBuffer();
-      const wb   = XLSX.read(buf, { type: "array" });
-      const ws   = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
-      if (rows.length === 0) { setMsgImport("Planilha vazia."); return; }
+      // ── 1. RelatorioSaldoConsolidado → mapa conta → nome ──────────────────
+      const rowsRel = await lerExcel(fileRelatorio);
+      if (rowsRel.length === 0) { setMsgImport("Relatório Saldo: planilha vazia."); return; }
 
-      const headers  = Object.keys(rows[0]);
-      const colConta = mapearColuna(headers, "codigoconta", "conta", "codigo", "account");
-      const colNome  = mapearColuna(headers, "nomecliente", "nome", "cliente");
-      const colNet   = mapearColuna(headers, "net", "patrimonio", "saldo", "total");
-      const colSuit  = mapearColuna(headers, "suitability", "perfil");
-      const colProf  = mapearColuna(headers, "profissao", "profissão", "ocupacao");
-      const colNasc  = mapearColuna(headers, "nascimento", "datanascimento");
+      const hdRel    = Object.keys(rowsRel[0]);
+      const colConta = mapearColuna(hdRel, "conta", "codigoconta", "codigo", "account");
+      const colNome  = mapearColuna(hdRel, "cliente", "nomecliente", "nome");
 
-      const clts = rows
-        .filter((r: any) => colConta && r[colConta])
-        .map((r: any) => ({
-          codigo_conta:    String(r[colConta!] || "").trim(),
-          nome:            String(r[colNome!] || "").trim(),
-          net:             parseFloat(String(r[colNet!] || "0").replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0,
-          suitability:     String(r[colSuit!] || "").trim(),
-          profissao:       String(r[colProf!] || "").trim(),
-          data_nascimento: colNasc ? String(r[colNasc] || "").trim() : "",
-        }))
-        .filter((c) => c.codigo_conta && c.nome);
+      if (!colConta) { setMsgImport("Relatório Saldo: coluna de código não encontrada."); return; }
+      if (!colNome)  { setMsgImport("Relatório Saldo: coluna de nome não encontrada."); return; }
 
+      const nomesPorConta = new Map<string, string>();
+      for (const r of rowsRel) {
+        const conta = String(r[colConta] || "").trim();
+        if (!conta) continue;
+        nomesPorConta.set(conta, String(r[colNome] || "").trim());
+      }
+
+      // ── 2. Positivador → mapa conta → dados ───────────────────────────────
+      const rowsPos = await lerExcel(filePositivador);
+      if (rowsPos.length === 0) { setMsgImport("Positivador: planilha vazia."); return; }
+
+      const hdPos    = Object.keys(rowsPos[0]);
+      // Código do cliente no Positivador pode ser COD_CLIENTE ou Cliente (quando é número)
+      const colContaP = mapearColuna(hdPos, "codcliente", "codigocliente", "conta", "account");
+      const colNet    = mapearColuna(hdPos, "netemm", "netem", "net", "patrimonio", "saldo");
+      const colSuit   = mapearColuna(hdPos, "suitability", "dscsuitability", "perfil");
+      const colProf   = mapearColuna(hdPos, "profissao", "dscprofissao", "profissão", "ocupacao");
+      const colNasc   = mapearColuna(hdPos, "datanascimento", "datdatanascimento", "nascimento");
+      const colSeg    = mapearColuna(hdPos, "segmento", "dscsegmento");
+
+      if (!colContaP) { setMsgImport("Positivador: coluna de código não encontrada."); return; }
+      if (!colNet)    { setMsgImport("Positivador: coluna de NET não encontrada."); return; }
+
+      const dadosPorConta = new Map<string, any>();
+      for (const r of rowsPos) {
+        const conta = String(r[colContaP] || "").trim();
+        if (!conta) continue;
+        dadosPorConta.set(conta, {
+          net:             parseNet(r[colNet]),
+          suitability:     colSuit  ? String(r[colSuit]  || "").trim() : "",
+          profissao:       colProf  ? String(r[colProf]  || "").trim() : "",
+          data_nascimento: colNasc  ? String(r[colNasc]  || "").trim() : "",
+          segmento:        colSeg   ? String(r[colSeg]   || "").trim() : "",
+        });
+      }
+
+      // ── 3. Cruzar pelo código do cliente ──────────────────────────────────
+      const clts: any[] = [];
+      for (const [conta, nome] of nomesPorConta) {
+        if (!nome) continue;
+        const pos = dadosPorConta.get(conta) ?? {};
+        clts.push({
+          codigo_conta:    conta,
+          nome,
+          net:             pos.net             ?? 0,
+          suitability:     pos.suitability     ?? "",
+          profissao:       pos.profissao       ?? "",
+          data_nascimento: pos.data_nascimento ?? "",
+          segmento:        pos.segmento        ?? "",
+        });
+      }
+
+      if (clts.length === 0) {
+        setMsgImport("Nenhum cliente encontrado após o cruzamento. Verifique se os arquivos são os corretos.");
+        return;
+      }
+
+      const semMatch = clts.filter((c) => !c.net && !c.suitability).length;
       const n = await importarClientes(user.uid, clts);
-      setMsgImport(`${n} clientes importados!`);
+      const aviso = semMatch > 0 ? ` (${semMatch} sem match no Positivador)` : "";
+      setMsgImport(`${n} clientes importados${aviso}!`);
       load();
     } catch (err: any) {
       setMsgImport(`Erro: ${err.message}`);
     } finally {
       setImportando(false);
-      if (fileRef.current) fileRef.current.value = "";
+      setFileRelatorio(null);
+      setFilePositivador(null);
+      if (refRelatorio.current)   refRelatorio.current.value   = "";
+      if (refPositivador.current) refPositivador.current.value = "";
     }
   };
 
@@ -174,18 +243,48 @@ function ClientesLista({
           <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
           <p className="text-slate-500 text-sm">{clientes.length} clientes</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col items-end gap-2">
           {msgImport && (
-            <span className={`text-xs ${msgImport.startsWith("Erro") ? "text-red-600" : "text-emerald-600"}`}>
+            <span className={`text-xs ${msgImport.startsWith("Erro") || msgImport.startsWith("Nenhum") ? "text-red-600" : "text-emerald-600"}`}>
               {msgImport}
             </span>
           )}
-          <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
-            onChange={(e) => e.target.files?.[0] && importarExcel(e.target.files[0])} />
-          <button onClick={() => fileRef.current?.click()} disabled={importando}
-            className="text-xs bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
-            {importando ? "Importando..." : "⬆ Importar XP Excel"}
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Input ocultos */}
+            <input ref={refRelatorio} type="file" accept=".xlsx,.xls" className="hidden"
+              onChange={(e) => setFileRelatorio(e.target.files?.[0] ?? null)} />
+            <input ref={refPositivador} type="file" accept=".xlsx,.xls" className="hidden"
+              onChange={(e) => setFilePositivador(e.target.files?.[0] ?? null)} />
+
+            {/* Botão 1: Relatório Saldo (nome) */}
+            <button onClick={() => refRelatorio.current?.click()} disabled={importando}
+              className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
+                fileRelatorio
+                  ? "bg-emerald-50 border-emerald-400 text-emerald-700"
+                  : "bg-white border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-600"
+              }`}>
+              {fileRelatorio ? `✓ ${fileRelatorio.name.slice(0, 20)}…` : "1. Rel. Saldo (nome)"}
+            </button>
+
+            {/* Botão 2: Positivador (net) */}
+            <button onClick={() => refPositivador.current?.click()} disabled={importando}
+              className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
+                filePositivador
+                  ? "bg-emerald-50 border-emerald-400 text-emerald-700"
+                  : "bg-white border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-600"
+              }`}>
+              {filePositivador ? `✓ ${filePositivador.name.slice(0, 20)}…` : "2. Positivador (net)"}
+            </button>
+
+            {/* Botão importar — só ativo quando os dois estão selecionados */}
+            <button onClick={importarDoisExcels} disabled={!podeImportar}
+              className="text-xs bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              {importando ? "Importando..." : "⬆ Importar"}
+            </button>
+          </div>
+          {(!fileRelatorio || !filePositivador) && !importando && (
+            <p className="text-xs text-slate-400">Selecione os 2 arquivos para habilitar a importação</p>
+          )}
         </div>
       </div>
 

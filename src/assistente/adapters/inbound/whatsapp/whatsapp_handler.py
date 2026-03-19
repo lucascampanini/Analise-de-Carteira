@@ -1235,6 +1235,13 @@ class OfertaRequest(BaseModel):
     roa: float = 0.0
 
 
+class OfertaPatchRequest(BaseModel):
+    nome: str | None = None
+    descricao: str | None = None
+    data_liquidacao: date | None = None
+    roa: float | None = None
+
+
 class ClienteOfertaRequest(BaseModel):
     codigo_conta: str
     nome_cliente: str | None = None
@@ -1304,6 +1311,51 @@ async def criar_oferta(request: Request, body: OfertaRequest):
     return {"id": oferta.id, "mensagem": "Oferta criada"}
 
 
+@router.get("/ofertas/template-excel")
+async def download_template_ofertas():
+    """Gera e retorna o template Excel para importação de clientes em uma oferta."""
+    try:
+        import openpyxl
+        from openpyxl.styles import Font, PatternFill, Alignment
+    except ImportError as e:
+        raise HTTPException(500, "openpyxl não instalado") from e
+
+    import io
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "Clientes Oferta"
+
+    header_labels = ["Código Conta *", "Nome do Cliente", "Valor Ofertado (R$)", "Status"]
+    fill = PatternFill("solid", fgColor="1E3A5F")
+    font = Font(bold=True, color="FFFFFF")
+    for col, label in enumerate(header_labels, 1):
+        cell = ws.cell(row=1, column=col, value=label)
+        cell.fill = fill
+        cell.font = font
+        cell.alignment = Alignment(horizontal="center")
+
+    ws.append(["12345678", "João Silva", 50000, "PENDENTE"])
+
+    ws_ref = wb.create_sheet("Referência")
+    ws_ref["A1"] = "Status (valores válidos)"
+    for i, v in enumerate(["PENDENTE", "WHATSAPP", "RESERVADO", "PUSH_ENVIADO", "FINALIZADO"], 2):
+        ws_ref[f"A{i}"] = v
+
+    for col, w in zip("ABCD", [18, 35, 22, 16]):
+        ws.column_dimensions[col].width = w
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": "attachment; filename=template_oferta.xlsx"},
+    )
+
+
 @router.get("/ofertas/{oferta_id}")
 async def detalhe_oferta(request: Request, oferta_id: str):
     """Retorna detalhes de uma oferta com todos os clientes e prévia de receita."""
@@ -1342,8 +1394,8 @@ async def detalhe_oferta(request: Request, oferta_id: str):
 
 
 @router.patch("/ofertas/{oferta_id}")
-async def atualizar_oferta(request: Request, oferta_id: str, body: OfertaRequest):
-    """Atualiza dados da oferta."""
+async def atualizar_oferta(request: Request, oferta_id: str, body: OfertaPatchRequest):
+    """Atualiza dados da oferta (campos parciais permitidos)."""
     session_factory = request.app.state.session_factory
     async with session_factory() as session:
         async with session.begin():
@@ -1351,12 +1403,9 @@ async def atualizar_oferta(request: Request, oferta_id: str, body: OfertaRequest
             oferta = await repo.buscar_oferta(oferta_id)
             if not oferta:
                 raise HTTPException(404, "Oferta não encontrada")
-            await repo.atualizar_oferta(oferta_id, {
-                "nome": body.nome,
-                "descricao": body.descricao,
-                "data_liquidacao": body.data_liquidacao,
-                "roa": body.roa,
-            })
+            updates = {k: v for k, v in body.model_dump().items() if v is not None}
+            if updates:
+                await repo.atualizar_oferta(oferta_id, updates)
     return {"mensagem": "Oferta atualizada"}
 
 
@@ -1434,6 +1483,71 @@ async def remover_cliente_oferta(request: Request, oferta_id: str, item_id: str)
         async with session.begin():
             await SqlAlchemyOfertaRepository(session).remover_cliente(item_id)
     return {"mensagem": "Cliente removido"}
+
+
+@router.post("/ofertas/{oferta_id}/importar-excel")
+async def importar_clientes_oferta_excel(
+    request: Request, oferta_id: str, arquivo: UploadFile = File(...)
+):
+    """Importa clientes para uma oferta a partir de planilha Excel."""
+    try:
+        import openpyxl
+    except ImportError as e:
+        raise HTTPException(500, "openpyxl não instalado") from e
+
+    import io
+    import uuid as _uuid
+
+    STATUSES_VALIDOS = {"PENDENTE", "WHATSAPP", "RESERVADO", "PUSH_ENVIADO", "FINALIZADO"}
+
+    conteudo = await arquivo.read()
+    try:
+        wb = openpyxl.load_workbook(io.BytesIO(conteudo), read_only=True, data_only=True)
+    except Exception as e:
+        raise HTTPException(400, f"Arquivo inválido. Certifique-se de enviar um .xlsx válido. ({e})") from e
+    ws = wb.active
+
+    importados = 0
+    erros: list[str] = []
+
+    session_factory = request.app.state.session_factory
+    async with session_factory() as session:
+        async with session.begin():
+            repo = SqlAlchemyOfertaRepository(session)
+
+            oferta = await repo.buscar_oferta(oferta_id)
+            if not oferta:
+                raise HTTPException(404, "Oferta não encontrada")
+
+            for row_idx, row in enumerate(ws.iter_rows(min_row=2, values_only=True), start=2):
+                if not row or not row[0]:
+                    continue
+
+                codigo_conta = str(row[0]).strip()
+                nome_cliente = str(row[1]).strip() if row[1] else None
+                valor_ofertado_raw = row[2]
+                status_raw = str(row[3]).strip().upper() if row[3] else "PENDENTE"
+
+                try:
+                    valor_ofertado = float(valor_ofertado_raw) if valor_ofertado_raw is not None else None
+                except (ValueError, TypeError):
+                    erros.append(f"Linha {row_idx}: valor inválido '{valor_ofertado_raw}'")
+                    continue
+
+                status = status_raw if status_raw in STATUSES_VALIDOS else "PENDENTE"
+
+                cliente = AssClienteOfertaModel(
+                    id=str(_uuid.uuid4()),
+                    oferta_id=oferta_id,
+                    codigo_conta=codigo_conta,
+                    nome_cliente=nome_cliente,
+                    valor_ofertado=valor_ofertado,
+                    status=status,
+                )
+                session.add(cliente)
+                importados += 1
+
+    return {"importados": importados, "erros": erros}
 
 
 @router.get("/ofertas/{oferta_id}/preview")

@@ -17,6 +17,7 @@ from src.adapters.inbound.rest.carteira_schemas import (
 )
 from src.application.commands.criar_cliente import CriarCliente
 from src.application.commands.processar_extrato import ProcessarExtrato
+from src.application.commands.processar_excel import ProcessarExcel
 from src.application.queries.get_analise_carteira import GetAnaliseCarteira, GetRelatorioCarteira
 from src.config.container import Container
 
@@ -101,6 +102,74 @@ async def upload_extrato(
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Erro ao processar extrato: {exc}") from exc
+
+
+@router.post("/upload-excel", status_code=202, response_model=UploadExtratoResponse)
+async def upload_excel(
+    request: Request,
+    file: UploadFile = File(..., description="Planilha Excel (.xlsx) com posições da carteira"),
+    cliente_id: str = Form(..., description="ID do cliente"),
+    data_referencia: str = Form(..., description="Data de referência (YYYY-MM-DD)"),
+    idempotency_key: str = Header(default_factory=lambda: str(uuid.uuid4()), alias="Idempotency-Key"),
+) -> UploadExtratoResponse:
+    """Faz upload de planilha Excel com posições e inicia análise da carteira.
+
+    Use GET /api/v1/carteira/template-excel para baixar o modelo de planilha.
+    """
+    container = _get_container(request)
+
+    EXCEL_TYPES = (
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "application/vnd.ms-excel",
+        "application/octet-stream",
+    )
+    if file.content_type not in EXCEL_TYPES and not (file.filename or "").endswith(".xlsx"):
+        raise HTTPException(
+            status_code=400,
+            detail="Arquivo deve ser uma planilha Excel (.xlsx)",
+        )
+
+    excel_bytes = await file.read()
+    if not excel_bytes:
+        raise HTTPException(status_code=400, detail="Arquivo Excel vazio")
+
+    command = ProcessarExcel(
+        cliente_id=cliente_id,
+        excel_bytes=excel_bytes,
+        nome_arquivo=file.filename or "carteira.xlsx",
+        data_referencia=data_referencia,
+        idempotency_key=idempotency_key,
+    )
+
+    try:
+        analise_id = await container.processar_excel_handler.handle(command)
+        return UploadExtratoResponse(
+            analise_id=analise_id,
+            status="CONCLUIDA",
+            message="Planilha Excel processada e análise gerada com sucesso.",
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Erro ao processar planilha: {exc}") from exc
+
+
+@router.get("/template-excel")
+async def download_template_excel() -> Response:
+    """Baixa o template Excel para preenchimento manual de posições.
+
+    Retorna um .xlsx com cabeçalhos corretos, validação e exemplo de dados.
+    """
+    from src.adapters.outbound.excel_parser.template_generator import gerar_template_excel
+
+    xlsx_bytes = gerar_template_excel()
+    return Response(
+        content=xlsx_bytes,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": 'attachment; filename="template_carteira.xlsx"',
+        },
+    )
 
 
 @router.get("/analise/{analise_id}", response_model=AnaliseCarteiraResponse)
