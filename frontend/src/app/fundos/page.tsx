@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSearchParams } from "next/navigation";
-import { getClientes, getPosicoes, importarPosicoes, importarPosicoesMulti, deletarPosicoesCliente } from "@/lib/firestore";
+import { getClientes, getPosicoes, importarPosicoes, importarPosicoesMulti, deletarPosicoesCliente, getFundosInfo } from "@/lib/firestore";
 import { brl } from "@/lib/formatters";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
@@ -167,12 +167,40 @@ function BarLiquidez({ data }: { data: any[] }) {
   );
 }
 
+// Mapa nome normalizado → info do fundo (para cruzar liquidez)
+function buildFundoMap(fundosInfo: any[]): Record<string, any> {
+  const mapa: Record<string, any> = {};
+  for (const f of fundosInfo) {
+    if (f.cnpj) mapa[f.cnpj] = f;
+    const norm = (f.nome_fundo || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (norm) mapa[norm] = f;
+  }
+  return mapa;
+}
+
+function enriquecerLiquidez(posicoes: any[], fundoMap: Record<string, any>): any[] {
+  return posicoes.map((p) => {
+    const norm = (p.ativo || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const info = fundoMap[norm] || null;
+    if (info && info.total_dias != null) {
+      return {
+        ...p,
+        liquidez_raw:    info.prazo_fmt || p.liquidez_raw,
+        liquidez_dias:   info.total_dias,
+        liquidez_bucket: liquidezBucket(info.total_dias),
+      };
+    }
+    return p;
+  });
+}
+
 function CarteiraDiversificacaoPageInner() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const contaParam   = searchParams.get("conta");
   const [clientes,   setClientes]   = useState<any[]>([]);
   const [posicoes,   setPosicoes]   = useState<any[]>([]);
+  const [fundoMap,   setFundoMap]   = useState<Record<string, any>>({});
   const [conta,      setConta]      = useState(contaParam || "");
   const [busca,      setBusca]      = useState("");
   const [importando, setImportando] = useState(false);
@@ -181,16 +209,17 @@ function CarteiraDiversificacaoPageInner() {
 
   const loadPosicoes = useCallback(async () => {
     if (!user) return;
-    const pos = await getPosicoes(user.uid);
+    const [pos, fi] = await Promise.all([getPosicoes(user.uid), getFundosInfo(user.uid)]);
     setPosicoes(pos);
+    setFundoMap(buildFundoMap(fi));
   }, [user]);
 
   useEffect(() => {
     if (!user) return;
-    Promise.all([getClientes(user.uid), getPosicoes(user.uid)]).then(([cls, pos]) => {
+    Promise.all([getClientes(user.uid), getPosicoes(user.uid), getFundosInfo(user.uid)]).then(([cls, pos, fi]) => {
       setClientes(cls);
       setPosicoes(pos);
-      // Preferência: URL param > primeiro cliente
+      setFundoMap(buildFundoMap(fi));
       if (contaParam) setConta(contaParam);
       else if (cls.length > 0 && !conta) setConta(cls[0].codigo_conta);
     });
@@ -240,7 +269,7 @@ function CarteiraDiversificacaoPageInner() {
   };
 
   const contasComPos  = [...new Set(posicoes.map((p) => p.codigo_conta))];
-  const posBruta      = posicoes.filter((p) => p.codigo_conta === conta);
+  const posBruta      = enriquecerLiquidez(posicoes.filter((p) => p.codigo_conta === conta), fundoMap);
   const posFiltradas  = posBruta.filter(
     (p) => !busca ||
       p.ativo.toLowerCase().includes(busca.toLowerCase()) ||
@@ -379,7 +408,7 @@ function CarteiraDiversificacaoPageInner() {
                   <span className="text-xs text-slate-400 w-4 shrink-0">{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between mb-1 gap-2">
-                      <span className="text-sm font-medium text-slate-800 truncate">{p.ativo}</span>
+                      <span className="text-sm font-medium text-slate-800 break-words">{p.ativo}</span>
                       <div className="flex items-center gap-3 shrink-0">
                         <span className="text-xs text-slate-400">{p.gestora || p.classe}</span>
                         <span className="text-xs font-semibold text-slate-700 w-10 text-right">{p.pct.toFixed(1)}%</span>
@@ -425,8 +454,8 @@ function CarteiraDiversificacaoPageInner() {
                                  :                         "bg-red-100 text-red-600";
                     return (
                       <tr key={i} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-800 max-w-xs truncate">{p.ativo}</p>
+                        <td className="px-4 py-3 max-w-xs">
+                          <p className="font-medium text-slate-800 break-words">{p.ativo}</p>
                           {p.tipo && <p className="text-xs text-slate-400">{p.tipo}</p>}
                         </td>
                         <td className="px-4 py-3">

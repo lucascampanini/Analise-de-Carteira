@@ -312,6 +312,14 @@ export async function importarPosicoesMulti(uid: string, posicoes: any[]) {
   return posicoes.length;
 }
 
+// ──────────────────────────────────────────────
+// FUNDOS INFO (lista-fundos XP)
+// ──────────────────────────────────────────────
+export async function getFundosInfo(uid: string) {
+  const snap = await getDocs(collection(db, "users", uid, "fundos_info"));
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+}
+
 export async function deletarPosicoesCliente(uid: string, conta: string) {
   const existing = await getDocs(col(uid, "posicoes"));
   const doConta = existing.docs.filter((d) => d.data().codigo_conta === conta);
