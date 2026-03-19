@@ -18,7 +18,12 @@ const suitabilityColor: Record<string, string> = {
 
 function calcularAniversario(dataNasc: string | null) {
   if (!dataNasc) return null;
-  const nasc = new Date(dataNasc + "T00:00:00");
+  let s = dataNasc.trim();
+  // DD/MM/YYYY → YYYY-MM-DD (dados antigos do Firestore)
+  const dmY = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (dmY) s = `${dmY[3]}-${dmY[2]}-${dmY[1]}`;
+  const nasc = new Date(s + "T00:00:00");
+  if (isNaN(nasc.getTime())) return null;
   const hoje = new Date();
   const ano  = hoje.getFullYear();
   let aniv   = new Date(ano, nasc.getMonth(), nasc.getDate());

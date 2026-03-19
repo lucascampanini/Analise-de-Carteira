@@ -3,17 +3,18 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2,
+  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart,
 } from "lucide-react";
 
 const nav = [
-  { href: "/",         icon: LayoutDashboard, label: "Dashboard" },
-  { href: "/clientes", icon: Users,           label: "Clientes"  },
-  { href: "/fundos",   icon: BarChart2,        label: "Carteira"  },
-  { href: "/alertas",  icon: Bell,            label: "Alertas"   },
-  { href: "/agenda",   icon: Calendar,        label: "Agenda"    },
-  { href: "/ofertas",  icon: Briefcase,       label: "Ofertas"   },
-  { href: "/leads",    icon: Target,          label: "Leads"     },
+  { href: "/",              icon: LayoutDashboard, label: "Dashboard" },
+  { href: "/clientes",      icon: Users,           label: "Clientes"  },
+  { href: "/fundos",        icon: BarChart2,        label: "Carteira"  },
+  { href: "/fundos-lista",  icon: PieChart,         label: "Fundos"    },
+  { href: "/alertas",       icon: Bell,            label: "Alertas"   },
+  { href: "/agenda",        icon: Calendar,        label: "Agenda"    },
+  { href: "/ofertas",       icon: Briefcase,       label: "Ofertas"   },
+  { href: "/leads",         icon: Target,          label: "Leads"     },
 ];
 
 export function Sidebar() {

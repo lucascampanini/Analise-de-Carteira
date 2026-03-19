@@ -4,7 +4,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   getOfertas, addOferta, patchOferta, deleteOferta,
   getAllClientesOfertas, addClienteOferta, patchClienteOferta, deleteClienteOferta,
-  importarClientesOferta, getClientes,
+  importarClientesOferta, getClientes, getPosicoes,
 } from "@/lib/firestore";
 import { brl } from "@/lib/formatters";
 import * as XLSX from "xlsx";
@@ -75,18 +75,23 @@ export default function OfertasPage() {
   const [loading,   setLoading]   = useState(false);
   const [importando,setImportando]= useState(false);
   const [msgImport, setMsgImport] = useState("");
+  const [posicoes,  setPosicoes]  = useState<any[]>([]);
+  // Estado para o inline-add: { ofertaId, conta, valor }
+  const [addingCell, setAddingCell] = useState<{ ofertaId: string; conta: string; valor: string } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [ofs, oc, cls] = await Promise.all([
+    const [ofs, oc, cls, pos] = await Promise.all([
       getOfertas(user.uid),
       getAllClientesOfertas(user.uid),
       getClientes(user.uid),
+      getPosicoes(user.uid),
     ]);
     setOfertas(ofs);
     setOcItems(oc);
     setClientes(cls);
+    setPosicoes(pos);
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
@@ -118,14 +123,23 @@ export default function OfertasPage() {
     load();
   };
 
-  const adicionarCliente = async (ofertaId: string, conta: string) => {
-    if (!user) return;
+  // Liquidez D+0/D+1 do cliente vindo das posições do diversificador
+  const liquidezCliente = (conta: string): number => {
+    const pos = posicoes.filter((p) => p.codigo_conta === conta && (p.liquidez_dias ?? 9999) <= 1);
+    return pos.reduce((s: number, p: any) => s + (p.valor || 0), 0);
+  };
+
+  const confirmarAdicao = async () => {
+    if (!addingCell || !user) return;
+    const { ofertaId, conta, valor } = addingCell;
     const c = clientes.find((x) => x.codigo_conta === conta);
+    const v = parseFloat(valor.replace(",", ".")) || null;
     await addClienteOferta(user.uid, {
       oferta_id: ofertaId, codigo_conta: conta,
       nome_cliente: c?.nome || conta, net: c?.net || 0,
-      status: "PENDENTE", valor_ofertado: null,
+      status: "PENDENTE", valor_ofertado: v,
     });
+    setAddingCell(null);
     load();
   };
 
@@ -369,6 +383,7 @@ export default function OfertasPage() {
                   <th className="sticky left-0 bg-slate-50 z-10 text-left px-4 py-3 font-semibold text-slate-600 min-w-[200px]">Cliente</th>
                   <th className="text-right px-3 py-3 font-semibold text-slate-600 min-w-[100px]">NET</th>
                   <th className="text-right px-3 py-3 font-semibold text-slate-600 min-w-[90px]">D+1</th>
+                  <th className="text-right px-3 py-3 font-semibold text-slate-600 min-w-[90px]">Liq. D+1</th>
                   <th className="text-right px-3 py-3 font-semibold text-slate-600 min-w-[90px]">Disponível</th>
                   {ofertas.map((o) => (
                     <th key={o.id} className="text-left px-3 py-3 font-semibold text-slate-600 min-w-[180px]">{o.nome}</th>
@@ -386,6 +401,9 @@ export default function OfertasPage() {
                     <td className="px-3 py-2.5 text-right text-xs text-slate-500">
                       {c.saldo_d1 ? brl(c.saldo_d1) : "—"}
                     </td>
+                    <td className="px-3 py-2.5 text-right text-xs text-blue-700 font-medium">
+                      {liquidezCliente(c.codigo_conta) > 0 ? brl(liquidezCliente(c.codigo_conta)) : "—"}
+                    </td>
                     <td className="px-3 py-2.5 text-right text-xs text-emerald-700 font-medium">
                       {(c.saldo_d0 || c.saldo_d1 || c.saldo_d2 || c.saldo_d3)
                         ? brl((c.saldo_d0||0)+(c.saldo_d1||0)+(c.saldo_d2||0)+(c.saldo_d3||0))
@@ -393,11 +411,31 @@ export default function OfertasPage() {
                     </td>
                     {ofertas.map((o) => {
                       const item = getItem(o.id, c.codigo_conta);
+                      const isAdding = addingCell?.ofertaId === o.id && addingCell?.conta === c.codigo_conta;
                       if (!item) {
+                        if (isAdding) {
+                          return (
+                            <td key={o.id} className="px-3 py-2.5">
+                              <div className="flex items-center gap-1">
+                                <input
+                                  autoFocus
+                                  type="text"
+                                  placeholder="Valor R$"
+                                  value={addingCell.valor}
+                                  onChange={(e) => setAddingCell((a) => a ? { ...a, valor: e.target.value } : a)}
+                                  onKeyDown={(e) => { if (e.key === "Enter") confirmarAdicao(); if (e.key === "Escape") setAddingCell(null); }}
+                                  className="w-24 border border-blue-400 rounded px-1.5 py-0.5 text-xs focus:outline-none"
+                                />
+                                <button onClick={confirmarAdicao} className="text-xs text-emerald-600 hover:text-emerald-800 font-bold">✓</button>
+                                <button onClick={() => setAddingCell(null)} className="text-xs text-slate-400 hover:text-red-500">✕</button>
+                              </div>
+                            </td>
+                          );
+                        }
                         return (
                           <td key={o.id} className="px-3 py-2.5">
-                            <button onClick={() => adicionarCliente(o.id, c.codigo_conta)}
-                              className="text-slate-300 hover:text-blue-600 transition-colors">
+                            <button onClick={() => setAddingCell({ ofertaId: o.id, conta: c.codigo_conta, valor: "" })}
+                              className="text-slate-300 hover:text-blue-600 transition-colors text-xs">
                               + adicionar
                             </button>
                           </td>

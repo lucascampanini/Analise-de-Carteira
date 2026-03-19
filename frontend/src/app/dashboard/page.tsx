@@ -147,6 +147,16 @@ export default function DashboardPage() {
     };
   });
 
+  // Top 20 por classe
+  const topFII    = top20PorClasse(posicoes, ["FII"]);
+  const topAcoes  = top20PorClasse(posicoes, ["Renda Variável"]);
+  const topFundos = top20PorClasse(posicoes, ["Fundos", "Previdência"]);
+  const topRF     = top20PorClasse(posicoes, ["Renda Fixa"]);
+  const totalFII    = topFII.reduce((s, x) => s + x.valor, 0);
+  const totalAcoes  = topAcoes.reduce((s, x) => s + x.valor, 0);
+  const totalFundos = topFundos.reduce((s, x) => s + x.valor, 0);
+  const totalRF     = topRF.reduce((s, x) => s + x.valor, 0);
+
   // Leads por estágio
   const leadsPorEstagio = ESTAGIOS.map((e) => ({
     estagio: e,
@@ -227,27 +237,17 @@ export default function DashboardPage() {
       </div>
 
       {/* Top 20 por classe */}
-      {posicoes.length > 0 && (() => {
-        const topFII    = top20PorClasse(posicoes, ["FII"]);
-        const topAcoes  = top20PorClasse(posicoes, ["Renda Variável"]);
-        const topFundos = top20PorClasse(posicoes, ["Fundos", "Previdência"]);
-        const topRF     = top20PorClasse(posicoes, ["Renda Fixa"]);
-        const totalFII    = topFII.reduce((s, x) => s + x.valor, 0);
-        const totalAcoes  = topAcoes.reduce((s, x) => s + x.valor, 0);
-        const totalFundos = topFundos.reduce((s, x) => s + x.valor, 0);
-        const totalRF     = topRF.reduce((s, x) => s + x.valor, 0);
-        return (
-          <div className="space-y-3">
-            <h2 className="font-semibold text-slate-800">Top 20 Posições por Classe</h2>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-              <PainelTop20 titulo="🏢 FII — Fundos Imobiliários" cor="#10b981" itens={topFII} total={totalFII} />
-              <PainelTop20 titulo="📈 Ações / RV" cor="#8b5cf6" itens={topAcoes} total={totalAcoes} />
-              <PainelTop20 titulo="💼 Fundos & Previdência" cor="#f59e0b" itens={topFundos} total={totalFundos} />
-              <PainelTop20 titulo="🏦 Renda Fixa" cor="#3b82f6" itens={topRF} total={totalRF} />
-            </div>
+      {posicoes.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="font-semibold text-slate-800">Top 20 Posições por Classe</h2>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <PainelTop20 titulo="🏢 FII — Fundos Imobiliários" cor="#10b981" itens={topFII} total={totalFII} />
+            <PainelTop20 titulo="📈 Ações / RV" cor="#8b5cf6" itens={topAcoes} total={totalAcoes} />
+            <PainelTop20 titulo="💼 Fundos & Previdência" cor="#f59e0b" itens={topFundos} total={totalFundos} />
+            <PainelTop20 titulo="🏦 Renda Fixa" cor="#3b82f6" itens={topRF} total={totalRF} />
           </div>
-        );
-      })()}
+        </div>
+      )}
 
       {/* Resumo das Ofertas */}
       {ofertasComMetricas.length > 0 && (
