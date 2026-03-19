@@ -421,7 +421,7 @@ export default function OfertasPage() {
                                   autoFocus
                                   type="text"
                                   placeholder="Valor R$"
-                                  value={addingCell.valor}
+                                  value={addingCell?.valor ?? ""}
                                   onChange={(e) => setAddingCell((a) => a ? { ...a, valor: e.target.value } : a)}
                                   onKeyDown={(e) => { if (e.key === "Enter") confirmarAdicao(); if (e.key === "Escape") setAddingCell(null); }}
                                   className="w-24 border border-blue-400 rounded px-1.5 py-0.5 text-xs focus:outline-none"
