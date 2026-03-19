@@ -93,7 +93,7 @@ function parseExcel(rows: any[], contaFixa?: string) {
   const colValor  = mapCol(headers, "valnet", "valornet", "valorliquido", "valorbrutodeativos", "valorbruto", "saldo", "valor", "pl");
   const colLiq    = mapCol(headers, "prazoderesgate", "liquidez", "prazo", "resgate");
   const colRent   = mapCol(headers, "rentabilidade12m", "rent12m", "rentabilidade");
-  const colCNPJ   = mapCol(headers, "cnpjfundo", "cnpjativo", "cnpj");
+  const colCNPJ   = mapCol(headers, "dsccnpjfundo", "cnpjfundo", "cnpjativo", "cnpj");
 
   return rows
     .map((r: any) => {
