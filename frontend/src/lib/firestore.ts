@@ -28,23 +28,10 @@ export async function getClientes(uid: string) {
 }
 
 export async function importarClientes(uid: string, clientes: any[]) {
-  // Apaga todos os clientes e reimporta (batch de até 500)
-  const existing = await getDocs(col(uid, "clientes"));
-  const chunks = [];
-  for (let i = 0; i < existing.docs.length; i += 400)
-    chunks.push(existing.docs.slice(i, i + 400));
-  for (const chunk of chunks) {
+  // Upsert por codigo_conta — evita apagar+reinserir (reduz writes ~3x)
+  for (let i = 0; i < clientes.length; i += 400) {
     const b = writeBatch(db);
-    chunk.forEach((d) => b.delete(d.ref));
-    await b.commit();
-  }
-  // Insere novos
-  const newChunks = [];
-  for (let i = 0; i < clientes.length; i += 400)
-    newChunks.push(clientes.slice(i, i + 400));
-  for (const chunk of newChunks) {
-    const b = writeBatch(db);
-    chunk.forEach((c) => {
+    clientes.slice(i, i + 400).forEach((c) => {
       const ref = doc(col(uid, "clientes"), c.codigo_conta || String(Math.random()));
       b.set(ref, { ...c, importado_em: new Date().toISOString() });
     });
@@ -263,25 +250,12 @@ export async function getPosicoes(uid: string, conta?: string) {
 }
 
 export async function importarPosicoes(uid: string, conta: string, posicoes: any[]) {
-  // Apaga posições existentes deste cliente e reimporta
-  const existing = await getDocs(col(uid, "posicoes"));
-  const doConta = existing.docs.filter((d) => d.data().codigo_conta === conta);
-  const chunks = [];
-  for (let i = 0; i < doConta.length; i += 400)
-    chunks.push(doConta.slice(i, i + 400));
-  for (const chunk of chunks) {
+  // Upsert por ID estável (conta + cnpj/ativo) — evita apagar+reinserir (reduz writes ~3x)
+  for (let i = 0; i < posicoes.length; i += 400) {
     const b = writeBatch(db);
-    chunk.forEach((d) => b.delete(d.ref));
-    await b.commit();
-  }
-  // Insere novas
-  const newChunks = [];
-  for (let i = 0; i < posicoes.length; i += 400)
-    newChunks.push(posicoes.slice(i, i + 400));
-  for (const chunk of newChunks) {
-    const b = writeBatch(db);
-    chunk.forEach((p) => {
-      const ref = doc(col(uid, "posicoes"));
+    posicoes.slice(i, i + 400).forEach((p) => {
+      const chave = `${conta}_${(p.cnpj_fundo || p.ativo || "").replace(/[^a-z0-9]/gi, "").slice(0, 40)}`;
+      const ref = doc(col(uid, "posicoes"), chave);
       b.set(ref, { ...p, codigo_conta: conta, importado_em: new Date().toISOString() });
     });
     await b.commit();
@@ -290,21 +264,12 @@ export async function importarPosicoes(uid: string, conta: string, posicoes: any
 }
 
 export async function importarPosicoesMulti(uid: string, posicoes: any[]) {
-  // Import bulk com múltiplos clientes (tem codigo_conta em cada linha)
-  const contas = [...new Set(posicoes.map((p) => p.codigo_conta))];
-  // Apaga todas as posições existentes dos clientes afetados
-  const existing = await getDocs(col(uid, "posicoes"));
-  const para_deletar = existing.docs.filter((d) => contas.includes(d.data().codigo_conta));
-  for (let i = 0; i < para_deletar.length; i += 400) {
-    const b = writeBatch(db);
-    para_deletar.slice(i, i + 400).forEach((d) => b.delete(d.ref));
-    await b.commit();
-  }
-  // Insere novas
+  // Upsert por ID estável (conta + cnpj/ativo) — evita apagar+reinserir (reduz writes ~3x)
   for (let i = 0; i < posicoes.length; i += 400) {
     const b = writeBatch(db);
     posicoes.slice(i, i + 400).forEach((p) => {
-      const ref = doc(col(uid, "posicoes"));
+      const chave = `${p.codigo_conta}_${(p.cnpj_fundo || p.ativo || "").replace(/[^a-z0-9]/gi, "").slice(0, 40)}`;
+      const ref = doc(col(uid, "posicoes"), chave);
       b.set(ref, { ...p, importado_em: new Date().toISOString() });
     });
     await b.commit();

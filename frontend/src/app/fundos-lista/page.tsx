@@ -10,13 +10,7 @@ import * as XLSX from "xlsx";
 // ── Firestore helpers ────────────────────────────────────────────────────────
 async function importarFundosInfo(uid: string, fundos: any[]) {
   const col = collection(db, "users", uid, "fundos_info");
-  // Apaga tudo e reimporta
-  const snap = await getDocs(col);
-  for (let i = 0; i < snap.docs.length; i += 400) {
-    const b = writeBatch(db);
-    snap.docs.slice(i, i + 400).forEach((d) => b.delete(d.ref));
-    await b.commit();
-  }
+  // Upsert por CNPJ — evita apagar+reinserir (reduz writes ~3x)
   for (let i = 0; i < fundos.length; i += 400) {
     const b = writeBatch(db);
     fundos.slice(i, i + 400).forEach((f) => {
