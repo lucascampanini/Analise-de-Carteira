@@ -76,7 +76,7 @@ function parseExcel(rows: any[], contaFixa?: string) {
   const headers = Object.keys(rows[0]);
   // Suporte às colunas do XP Diversificador (COD_CLIENTE, DSC_ATIVO, VAL_NET, etc.)
   const colConta  = mapCol(headers, "codcliente", "codigodaconta", "codigoconta", "conta", "codigo");
-  const colAtivo  = mapCol(headers, "dscativo", "dscproduto", "produto", "ativo", "fundo", "descricao", "papel", "titulo");
+  const colAtivo  = mapCol(headers, "dscativo", "ativo", "fundo", "papel", "titulo", "descricao");
   const colProd   = mapCol(headers, "dscproduto", "produto", "classe", "tipo", "categoria", "tipodeativos");
   const colClasse = mapCol(headers, "classe", "tipo", "categoria", "tipodeativos", "segmento");
   const colTipo   = mapCol(headers, "subtipo", "subclasse", "tipodeproduto", "estrategia");
