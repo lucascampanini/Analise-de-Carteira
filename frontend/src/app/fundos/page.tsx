@@ -1,6 +1,7 @@
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSearchParams } from "next/navigation";
 import { getClientes, getPosicoes, importarPosicoes, importarPosicoesMulti, deletarPosicoesCliente } from "@/lib/firestore";
 import { brl } from "@/lib/formatters";
 import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
@@ -58,15 +59,29 @@ function mapCol(headers: string[], ...opts: string[]) {
   );
 }
 
+// Detecta a classe a partir do DSC_PRODUTO do Diversificador XP
+function normalizarClasseXP(produto: string, dscAtivo: string): string {
+  const p = (produto || "").toLowerCase();
+  const a = (dscAtivo || "").toLowerCase();
+  if (p.includes("previd")) return "Previdência";
+  if (p.includes("imobili") || p.includes("fii") || a.includes("fii")) return "FII";
+  if (p.includes("renda fixa") || p.includes("tesouro")) return "Renda Fixa";
+  if (p.includes("ação") || p.includes("acao") || p.includes("bdr") || p.includes("etf")) return "Renda Variável";
+  if (p.includes("fundo") || p.includes("fim") || p.includes("fic") || p.includes("multimercado")) return "Fundos";
+  return normalizeClasse(produto || dscAtivo);
+}
+
 function parseExcel(rows: any[], contaFixa?: string) {
   if (rows.length === 0) return [];
   const headers = Object.keys(rows[0]);
-  const colConta  = mapCol(headers, "codigodaconta", "codigoconta", "conta", "codigo");
-  const colAtivo  = mapCol(headers, "produto", "ativo", "fundo", "descricao", "papel", "titulo");
+  // Suporte às colunas do XP Diversificador (COD_CLIENTE, DSC_ATIVO, VAL_NET, etc.)
+  const colConta  = mapCol(headers, "codcliente", "codigodaconta", "codigoconta", "conta", "codigo");
+  const colAtivo  = mapCol(headers, "dscativo", "dscproduto", "produto", "ativo", "fundo", "descricao", "papel", "titulo");
+  const colProd   = mapCol(headers, "dscproduto", "produto", "classe", "tipo", "categoria", "tipodeativos");
   const colClasse = mapCol(headers, "classe", "tipo", "categoria", "tipodeativos", "segmento");
   const colTipo   = mapCol(headers, "subtipo", "subclasse", "tipodeproduto", "estrategia");
-  const colGest   = mapCol(headers, "gestora", "gestor", "administrador");
-  const colValor  = mapCol(headers, "valorliquido", "valorbrutodeativos", "valorbruto", "saldo", "valor", "pl");
+  const colGest   = mapCol(headers, "gestora", "gestor", "administrador", "dscgestor");
+  const colValor  = mapCol(headers, "valnet", "valornet", "valorliquido", "valorbrutodeativos", "valorbruto", "saldo", "valor", "pl");
   const colLiq    = mapCol(headers, "prazoderesgate", "liquidez", "prazo", "resgate");
   const colRent   = mapCol(headers, "rentabilidade12m", "rent12m", "rentabilidade");
 
@@ -79,10 +94,12 @@ function parseExcel(rows: any[], contaFixa?: string) {
       const conta = contaFixa || (colConta ? String(r[colConta] || "").trim() : "");
       const rawLiq = colLiq ? String(r[colLiq] || "") : "";
       const diasLiq = parseLiquidez(rawLiq);
+      const produtoRaw = colProd ? String(r[colProd] || "") : "";
+      const ativoRaw   = colAtivo ? String(r[colAtivo] || "—").trim() : "—";
       return {
         codigo_conta:    conta,
-        ativo:           colAtivo  ? String(r[colAtivo]  || "—").trim() : "—",
-        classe:          normalizeClasse(colClasse ? String(r[colClasse] || "") : ""),
+        ativo:           ativoRaw,
+        classe:          normalizarClasseXP(produtoRaw, ativoRaw) || normalizeClasse(colClasse ? String(r[colClasse] || "") : produtoRaw),
         tipo:            colTipo   ? String(r[colTipo]   || "").trim()  : "",
         gestora:         colGest   ? String(r[colGest]   || "").trim()  : "",
         valor,
@@ -150,11 +167,13 @@ function BarLiquidez({ data }: { data: any[] }) {
   );
 }
 
-export default function CarteiraDiversificacaoPage() {
+function CarteiraDiversificacaoPageInner() {
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const contaParam   = searchParams.get("conta");
   const [clientes,   setClientes]   = useState<any[]>([]);
   const [posicoes,   setPosicoes]   = useState<any[]>([]);
-  const [conta,      setConta]      = useState("");
+  const [conta,      setConta]      = useState(contaParam || "");
   const [busca,      setBusca]      = useState("");
   const [importando, setImportando] = useState(false);
   const [msgImport,  setMsgImport]  = useState("");
@@ -171,7 +190,9 @@ export default function CarteiraDiversificacaoPage() {
     Promise.all([getClientes(user.uid), getPosicoes(user.uid)]).then(([cls, pos]) => {
       setClientes(cls);
       setPosicoes(pos);
-      if (cls.length > 0) setConta(cls[0].codigo_conta);
+      // Preferência: URL param > primeiro cliente
+      if (contaParam) setConta(contaParam);
+      else if (cls.length > 0 && !conta) setConta(cls[0].codigo_conta);
     });
   }, [user]);
 
@@ -453,5 +474,13 @@ export default function CarteiraDiversificacaoPage() {
         </>
       )}
     </div>
+  );
+}
+
+export default function CarteiraDiversificacaoPage() {
+  return (
+    <Suspense>
+      <CarteiraDiversificacaoPageInner />
+    </Suspense>
   );
 }

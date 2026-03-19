@@ -101,6 +101,24 @@ function parseNet(v: any): number {
   return parseFloat(String(v).replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0;
 }
 
+/** Normaliza data para YYYY-MM-DD. Aceita DD/MM/YYYY, número serial Excel e ISO. */
+function normalizarData(v: any): string {
+  if (!v && v !== 0) return "";
+  // Número serial do Excel (ex: 31859 = 1987-03-21)
+  if (typeof v === "number") {
+    const d = new Date(Math.round((v - 25569) * 86400000));
+    const iso = d.toISOString().slice(0, 10);
+    return iso;
+  }
+  const s = String(v).trim();
+  if (!s) return "";
+  // DD/MM/YYYY
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  // YYYY-MM-DD ou similar
+  return s.slice(0, 10);
+}
+
 function ClientesLista({
   clientes, load, onSelectConta,
 }: {
@@ -170,7 +188,7 @@ function ClientesLista({
           net:             parseNet(r[colNet]),
           suitability:     colSuit  ? String(r[colSuit]  || "").trim() : "",
           profissao:       colProf  ? String(r[colProf]  || "").trim() : "",
-          data_nascimento: colNasc  ? String(r[colNasc]  || "").trim() : "",
+          data_nascimento: colNasc  ? normalizarData(r[colNasc]) : "",
           segmento:        colSeg   ? String(r[colSeg]   || "").trim() : "",
         });
       }
@@ -382,10 +400,16 @@ function ClientesLista({
                     </td>
                     <td className="px-4 py-3 text-right font-semibold text-slate-800">{brl(c.net)}</td>
                     <td className="px-4 py-3 text-right">
-                      <button onClick={() => onSelectConta(c.codigo_conta)}
-                        className="text-blue-600 hover:text-blue-800 font-medium text-xs">
-                        Ver perfil →
-                      </button>
+                      <div className="flex items-center justify-end gap-3">
+                        <Link href={`/fundos?conta=${c.codigo_conta}`}
+                          className="text-emerald-600 hover:text-emerald-800 font-medium text-xs">
+                          Carteira →
+                        </Link>
+                        <button onClick={() => onSelectConta(c.codigo_conta)}
+                          className="text-blue-600 hover:text-blue-800 font-medium text-xs">
+                          Perfil →
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

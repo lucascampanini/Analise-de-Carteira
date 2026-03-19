@@ -106,11 +106,8 @@ export default function OfertasPage() {
     };
   });
 
-  const contasUsadas = [...new Set(ocItems.map((x) => x.codigo_conta))];
-  const clientesTabela = contasUsadas.map((conta) => {
-    const c = clientes.find((x) => x.codigo_conta === conta);
-    return { codigo_conta: conta, nome: c?.nome || conta, net: c?.net || 0 };
-  }).sort((a, b) => b.net - a.net);
+  // Mostra TODOS os clientes (não só os já adicionados)
+  const clientesTabela = [...clientes].sort((a, b) => (b.net || 0) - (a.net || 0));
 
   const getItem = (ofertaId: string, conta: string) =>
     ocItems.find((x) => x.oferta_id === ofertaId && x.codigo_conta === conta);
@@ -371,6 +368,8 @@ export default function OfertasPage() {
                 <tr>
                   <th className="sticky left-0 bg-slate-50 z-10 text-left px-4 py-3 font-semibold text-slate-600 min-w-[200px]">Cliente</th>
                   <th className="text-right px-3 py-3 font-semibold text-slate-600 min-w-[100px]">NET</th>
+                  <th className="text-right px-3 py-3 font-semibold text-slate-600 min-w-[90px]">D+1</th>
+                  <th className="text-right px-3 py-3 font-semibold text-slate-600 min-w-[90px]">Disponível</th>
                   {ofertas.map((o) => (
                     <th key={o.id} className="text-left px-3 py-3 font-semibold text-slate-600 min-w-[180px]">{o.nome}</th>
                   ))}
@@ -384,6 +383,14 @@ export default function OfertasPage() {
                       <p className="text-slate-400 font-mono">{c.codigo_conta}</p>
                     </td>
                     <td className="px-3 py-2.5 text-right font-medium text-slate-700">{brl(c.net)}</td>
+                    <td className="px-3 py-2.5 text-right text-xs text-slate-500">
+                      {c.saldo_d1 ? brl(c.saldo_d1) : "—"}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-xs text-emerald-700 font-medium">
+                      {(c.saldo_d0 || c.saldo_d1 || c.saldo_d2 || c.saldo_d3)
+                        ? brl((c.saldo_d0||0)+(c.saldo_d1||0)+(c.saldo_d2||0)+(c.saldo_d3||0))
+                        : "—"}
+                    </td>
                     {ofertas.map((o) => {
                       const item = getItem(o.id, c.codigo_conta);
                       if (!item) {
@@ -417,7 +424,13 @@ export default function OfertasPage() {
                 <tr className="bg-slate-50 font-semibold border-t-2 border-slate-200">
                   <td className="sticky left-0 bg-slate-50 z-10 px-4 py-2.5 text-slate-700">Total</td>
                   <td className="px-3 py-2.5 text-right text-slate-700">
-                    {brl(clientesTabela.reduce((s, c) => s + c.net, 0))}
+                    {brl(clientesTabela.reduce((s, c) => s + (c.net||0), 0))}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-500 text-xs">
+                    {brl(clientesTabela.reduce((s, c) => s + (c.saldo_d1||0), 0))}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-emerald-700 text-xs font-medium">
+                    {brl(clientesTabela.reduce((s, c) => s + (c.saldo_d0||0)+(c.saldo_d1||0)+(c.saldo_d2||0)+(c.saldo_d3||0), 0))}
                   </td>
                   {ofertas.map((o) => {
                     const total = ocItems

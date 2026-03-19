@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  getClientes, getEventosProximos, getReunioes, getOfertas, getAllClientesOfertas, getLeads,
+  getClientes, getEventosProximos, getReunioes, getOfertas, getAllClientesOfertas, getLeads, getPosicoes,
 } from "@/lib/firestore";
 import { brl } from "@/lib/formatters";
 import { Users, TrendingUp, Calendar, CheckSquare, Target, Briefcase } from "lucide-react";
@@ -24,6 +24,62 @@ const ESTAGIO_COR: Record<string, string> = {
   CLIENTE:   "bg-emerald-100 text-emerald-700",
 };
 
+// Agrupa posições de todos os clientes por nome do ativo e retorna top N por valor
+function top20PorClasse(posicoes: any[], classes: string[], top = 20) {
+  const agg: Record<string, { ativo: string; valor: number; nClientes: Set<string>; classe: string }> = {};
+  for (const p of posicoes) {
+    if (!classes.includes(p.classe)) continue;
+    const key = (p.ativo || "—").trim();
+    if (!agg[key]) agg[key] = { ativo: key, valor: 0, nClientes: new Set(), classe: p.classe };
+    agg[key].valor += p.valor || 0;
+    agg[key].nClientes.add(p.codigo_conta);
+  }
+  return Object.values(agg)
+    .map((x) => ({ ...x, nClientes: x.nClientes.size }))
+    .sort((a, b) => b.valor - a.valor)
+    .slice(0, top);
+}
+
+function PainelTop20({ titulo, cor, itens, total }: { titulo: string; cor: string; itens: any[]; total: number }) {
+  if (itens.length === 0) return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <h3 className="font-semibold text-slate-800 mb-3">{titulo}</h3>
+      <p className="text-slate-400 text-sm text-center py-6">Sem posições importadas</p>
+    </div>
+  );
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <h3 className="font-semibold text-slate-800">{titulo}</h3>
+        <span className="text-xs text-slate-400">{brl(total)}</span>
+      </div>
+      <div className="divide-y divide-slate-50">
+        {itens.map((item, i) => {
+          const pct = total > 0 ? (item.valor / total) * 100 : 0;
+          return (
+            <div key={item.ativo} className="px-5 py-2 flex items-center gap-3">
+              <span className="text-xs text-slate-400 w-5 shrink-0">{i + 1}</span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between gap-2 mb-0.5">
+                  <span className="text-xs font-medium text-slate-800 truncate">{item.ativo}</span>
+                  <span className="text-xs font-bold text-slate-700 shrink-0">{brl(item.valor)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${pct}%`, background: cor }} />
+                  </div>
+                  <span className="text-xs text-slate-400 w-12 text-right shrink-0">{pct.toFixed(1)}%</span>
+                  <span className="text-xs text-slate-300 w-14 text-right shrink-0">{item.nClientes} cli.</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const [clientes, setClientes]   = useState<any[]>([]);
@@ -32,6 +88,7 @@ export default function DashboardPage() {
   const [ofertas,  setOfertas]    = useState<any[]>([]);
   const [ocItems,  setOcItems]    = useState<any[]>([]);
   const [leads,    setLeads]      = useState<any[]>([]);
+  const [posicoes, setPosicoes]   = useState<any[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -43,13 +100,15 @@ export default function DashboardPage() {
       getOfertas(uid),
       getAllClientesOfertas(uid),
       getLeads(uid),
-    ]).then(([cls, evts, reuns, ofs, oc, ls]) => {
+      getPosicoes(uid),
+    ]).then(([cls, evts, reuns, ofs, oc, ls, pos]) => {
       setClientes(cls);
       setTarefas(evts.filter((e: any) => e.tipo === "TAREFA"));
       setReunioes(reuns);
       setOfertas(ofs);
       setOcItems(oc);
       setLeads(ls);
+      setPosicoes(pos);
     });
   }, [user]);
 
@@ -166,6 +225,29 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Top 20 por classe */}
+      {posicoes.length > 0 && (() => {
+        const topFII    = top20PorClasse(posicoes, ["FII"]);
+        const topAcoes  = top20PorClasse(posicoes, ["Renda Variável"]);
+        const topFundos = top20PorClasse(posicoes, ["Fundos", "Previdência"]);
+        const topRF     = top20PorClasse(posicoes, ["Renda Fixa"]);
+        const totalFII    = topFII.reduce((s, x) => s + x.valor, 0);
+        const totalAcoes  = topAcoes.reduce((s, x) => s + x.valor, 0);
+        const totalFundos = topFundos.reduce((s, x) => s + x.valor, 0);
+        const totalRF     = topRF.reduce((s, x) => s + x.valor, 0);
+        return (
+          <div className="space-y-3">
+            <h2 className="font-semibold text-slate-800">Top 20 Posições por Classe</h2>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+              <PainelTop20 titulo="🏢 FII — Fundos Imobiliários" cor="#10b981" itens={topFII} total={totalFII} />
+              <PainelTop20 titulo="📈 Ações / RV" cor="#8b5cf6" itens={topAcoes} total={totalAcoes} />
+              <PainelTop20 titulo="💼 Fundos & Previdência" cor="#f59e0b" itens={topFundos} total={totalFundos} />
+              <PainelTop20 titulo="🏦 Renda Fixa" cor="#3b82f6" itens={topRF} total={totalRF} />
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Resumo das Ofertas */}
       {ofertasComMetricas.length > 0 && (
