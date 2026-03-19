@@ -207,18 +207,20 @@ function CarteiraDiversificacaoPageInner() {
       const rows = XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
       if (rows.length === 0) { setMsgImport("Planilha vazia."); return; }
 
-      const headers  = Object.keys(rows[0]);
-      const temConta = !!mapCol(headers, "codcliente", "codigodaconta", "codigoconta", "conta", "codigo");
+      // Parseia sem forçar conta — se o arquivo tiver coluna de cliente, codigo_conta virá preenchido
+      const parsed = parseExcel(rows);
+      const comConta = parsed.filter((p) => p.codigo_conta);
 
-      if (temConta) {
-        const parsed = parseExcel(rows).filter((p) => p.codigo_conta);
-        const n = await importarPosicoesMulti(user.uid, parsed);
-        const nContas = new Set(parsed.map((p) => p.codigo_conta)).size;
+      if (comConta.length > 0) {
+        // Multi-cliente (ex: Diversificador XP com COD_CLIENTE)
+        const n = await importarPosicoesMulti(user.uid, comConta);
+        const nContas = new Set(comConta.map((p) => p.codigo_conta)).size;
         setMsgImport(`${n} posições importadas (${nContas} clientes)!`);
       } else {
+        // Arquivo sem coluna de conta → usa o cliente selecionado na tela
         if (!conta) { setMsgImport("Selecione um cliente primeiro."); return; }
-        const parsed = parseExcel(rows, conta);
-        const n = await importarPosicoes(user.uid, conta, parsed);
+        const parsedSingle = parseExcel(rows, conta);
+        const n = await importarPosicoes(user.uid, conta, parsedSingle);
         setMsgImport(`${n} posições importadas para ${conta}!`);
       }
       await loadPosicoes();
