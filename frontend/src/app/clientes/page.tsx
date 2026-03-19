@@ -16,6 +16,16 @@ const suitabilityColor: Record<string, string> = {
   Agressivo:   "bg-red-100 text-red-700",
 };
 
+function normalizarDataNasc(v: string | null): string {
+  if (!v) return "";
+  let s = v.trim();
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) s = `${m[3]}-${m[2]}-${m[1]}`;
+  const d = new Date(s + "T00:00:00");
+  if (isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("pt-BR");
+}
+
 function calcularAniversario(dataNasc: string | null) {
   if (!dataNasc) return null;
   let s = dataNasc.trim();
@@ -76,9 +86,7 @@ function ClientePerfil({ conta, clientes, onVoltar }: { conta: string; clientes:
             <div>
               <p className="text-xs text-slate-500">Nascimento</p>
               <p className="text-sm text-slate-800">
-                {cliente.data_nascimento
-                  ? new Date(cliente.data_nascimento + "T00:00:00").toLocaleDateString("pt-BR")
-                  : "—"}
+                {normalizarDataNasc(cliente.data_nascimento) || "—"}
               </p>
             </div>
           </div>
@@ -391,7 +399,7 @@ function ClientesLista({
                     <td className="px-4 py-3">
                       {c.data_nascimento ? (
                         <span className="text-xs text-slate-600">
-                          {new Date(c.data_nascimento + "T00:00:00").toLocaleDateString("pt-BR")}
+                          {normalizarDataNasc(c.data_nascimento) || "—"}
                           {aniv && aniv.dias <= 30 && (
                             <span className="ml-2 text-violet-600 font-medium">
                               {aniv.dias === 0 ? "Hoje!" : `em ${aniv.dias}d`}
