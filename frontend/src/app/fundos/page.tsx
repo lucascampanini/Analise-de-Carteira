@@ -208,7 +208,7 @@ function CarteiraDiversificacaoPageInner() {
       if (rows.length === 0) { setMsgImport("Planilha vazia."); return; }
 
       const headers  = Object.keys(rows[0]);
-      const temConta = !!mapCol(headers, "codigodaconta", "codigoconta", "conta", "codigo");
+      const temConta = !!mapCol(headers, "codcliente", "codigodaconta", "codigoconta", "conta", "codigo");
 
       if (temConta) {
         const parsed = parseExcel(rows).filter((p) => p.codigo_conta);
