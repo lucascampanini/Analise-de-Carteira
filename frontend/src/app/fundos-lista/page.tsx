@@ -106,9 +106,9 @@ function cruzarPosicoesFundos(posicoes: any[], fundosInfo: any[]) {
   for (const p of fundoPosicoes) {
     const key = (p.ativo || "—").trim();
     if (!agg[key]) {
-      // Tenta encontrar info do fundo por nome normalizado
+      // 1º cruza por CNPJ, 2º por nome normalizado
       const nNorm = key.toLowerCase().replace(/[^a-z0-9]/g, "");
-      const info = mapaFundo[nNorm] || null;
+      const info = (p.cnpj_fundo && mapaFundo[p.cnpj_fundo]) || mapaFundo[nNorm] || null;
       agg[key] = {
         ativo: key,
         classe: p.classe,

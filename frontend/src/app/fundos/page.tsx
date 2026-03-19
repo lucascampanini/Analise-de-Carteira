@@ -84,6 +84,7 @@ function parseExcel(rows: any[], contaFixa?: string) {
   const colValor  = mapCol(headers, "valnet", "valornet", "valorliquido", "valorbrutodeativos", "valorbruto", "saldo", "valor", "pl");
   const colLiq    = mapCol(headers, "prazoderesgate", "liquidez", "prazo", "resgate");
   const colRent   = mapCol(headers, "rentabilidade12m", "rent12m", "rentabilidade");
+  const colCNPJ   = mapCol(headers, "cnpjfundo", "cnpjativo", "cnpj");
 
   return rows
     .map((r: any) => {
@@ -96,9 +97,11 @@ function parseExcel(rows: any[], contaFixa?: string) {
       const diasLiq = parseLiquidez(rawLiq);
       const produtoRaw = colProd ? String(r[colProd] || "") : "";
       const ativoRaw   = colAtivo ? String(r[colAtivo] || "—").trim() : "—";
+      const cnpjRaw    = colCNPJ  ? String(r[colCNPJ]  || "").replace(/\D/g, "").padStart(14, "0") : "";
       return {
         codigo_conta:    conta,
         ativo:           ativoRaw,
+        cnpj_fundo:      cnpjRaw.length === 14 ? cnpjRaw : "",
         classe:          normalizarClasseXP(produtoRaw, ativoRaw) || normalizeClasse(colClasse ? String(r[colClasse] || "") : produtoRaw),
         tipo:            colTipo   ? String(r[colTipo]   || "").trim()  : "",
         gestora:         colGest   ? String(r[colGest]   || "").trim()  : "",
@@ -180,8 +183,10 @@ function buildFundoMap(fundosInfo: any[]): Record<string, any> {
 
 function enriquecerLiquidez(posicoes: any[], fundoMap: Record<string, any>): any[] {
   return posicoes.map((p) => {
+    // 1º: cruza por CNPJ (mais confiável)
+    // 2º: fallback por nome normalizado
     const norm = (p.ativo || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-    const info = fundoMap[norm] || null;
+    const info = (p.cnpj_fundo && fundoMap[p.cnpj_fundo]) || fundoMap[norm] || null;
     if (info && info.total_dias != null) {
       return {
         ...p,
