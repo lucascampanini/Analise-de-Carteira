@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart,
+  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart, FolderInput,
 } from "lucide-react";
 
 const nav = [
@@ -15,6 +15,7 @@ const nav = [
   { href: "/agenda",        icon: Calendar,        label: "Agenda"    },
   { href: "/ofertas",       icon: Briefcase,       label: "Ofertas"   },
   { href: "/leads",         icon: Target,          label: "Leads"     },
+  { href: "/importar",      icon: FolderInput,     label: "Importar"  },
 ];
 
 export function Sidebar() {

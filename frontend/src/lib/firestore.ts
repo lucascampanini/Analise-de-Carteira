@@ -285,6 +285,19 @@ export async function getFundosInfo(uid: string) {
   return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
 }
 
+export async function importarFundosInfo(uid: string, fundos: any[]) {
+  const col = collection(db, "users", uid, "fundos_info");
+  for (let i = 0; i < fundos.length; i += 400) {
+    const b = writeBatch(db);
+    fundos.slice(i, i + 400).forEach((f) => {
+      const ref = doc(col, f.cnpj || String(Math.random()));
+      b.set(ref, f);
+    });
+    await b.commit();
+  }
+  return fundos.length;
+}
+
 export async function deletarPosicoesCliente(uid: string, conta: string) {
   const existing = await getDocs(col(uid, "posicoes"));
   const doConta = existing.docs.filter((d) => d.data().codigo_conta === conta);
