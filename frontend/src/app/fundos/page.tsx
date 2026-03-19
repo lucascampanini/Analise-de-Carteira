@@ -59,6 +59,15 @@ function mapCol(headers: string[], ...opts: string[]) {
   );
 }
 
+// Match exato (normalizado) — evita falsos positivos em colunas críticas
+function mapColExact(headers: string[], ...opts: string[]) {
+  return headers.find((h) =>
+    opts.some((o) =>
+      h.toLowerCase().replace(/[^a-z0-9]/g, "") === o.toLowerCase().replace(/[^a-z0-9]/g, "")
+    )
+  );
+}
+
 // Detecta a classe a partir do DSC_PRODUTO do Diversificador XP
 function normalizarClasseXP(produto: string, dscAtivo: string): string {
   const p = (produto || "").toLowerCase();
@@ -76,7 +85,7 @@ function parseExcel(rows: any[], contaFixa?: string) {
   const headers = Object.keys(rows[0]);
   // Suporte às colunas do XP Diversificador (COD_CLIENTE, DSC_ATIVO, VAL_NET, etc.)
   const colConta  = mapCol(headers, "codcliente", "codigodaconta", "codigoconta", "conta", "codigo");
-  const colAtivo  = mapCol(headers, "dscativo", "ativo", "fundo", "papel", "titulo", "descricao");
+  const colAtivo  = mapColExact(headers, "dscativo", "nomativo", "nomefundo", "fundo", "papel", "titulo");
   const colProd   = mapCol(headers, "dscproduto", "produto", "classe", "tipo", "categoria", "tipodeativos");
   const colClasse = mapCol(headers, "classe", "tipo", "categoria", "tipodeativos", "segmento");
   const colTipo   = mapCol(headers, "subtipo", "subclasse", "tipodeproduto", "estrategia");
