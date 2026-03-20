@@ -80,6 +80,18 @@ function normalizarClasseXP(produto: string, dscAtivo: string): string {
   return normalizeClasse(produto || dscAtivo);
 }
 
+function parseDataExcel(v: any): string {
+  if (!v && v !== 0) return "";
+  if (typeof v === "number") {
+    const d = new Date(Math.round((v - 25569) * 86400000));
+    return d.toISOString().slice(0, 10);
+  }
+  const s = String(v).trim();
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return s.slice(0, 10);
+}
+
 function parseExcel(rows: any[], contaFixa?: string) {
   if (rows.length === 0) return [];
   const headers = Object.keys(rows[0]);
@@ -94,6 +106,7 @@ function parseExcel(rows: any[], contaFixa?: string) {
   const colLiq    = mapCol(headers, "prazoderesgate", "liquidez", "prazo", "resgate");
   const colRent   = mapCol(headers, "rentabilidade12m", "rent12m", "rentabilidade");
   const colCNPJ   = mapCol(headers, "dsccnpjfundo", "cnpjfundo", "cnpjativo", "cnpj");
+  const colVenc   = mapCol(headers, "datvencimento", "datavencimento", "dtavencimento", "vencimento", "datavenc", "dtvenc");
 
   return rows
     .map((r: any) => {
@@ -107,6 +120,8 @@ function parseExcel(rows: any[], contaFixa?: string) {
       const produtoRaw = colProd ? String(r[colProd] || "") : "";
       const ativoRaw   = colAtivo ? String(r[colAtivo] || "—").trim() : "—";
       const cnpjRaw    = colCNPJ  ? String(r[colCNPJ]  || "").replace(/\D/g, "") : "";
+      const vencRaw    = colVenc  ? r[colVenc] : null;
+      const data_vencimento = parseDataExcel(vencRaw);
       return {
         codigo_conta:    conta,
         ativo:           ativoRaw,
@@ -119,6 +134,7 @@ function parseExcel(rows: any[], contaFixa?: string) {
         liquidez_dias:   diasLiq,
         liquidez_bucket: liquidezBucket(diasLiq),
         rent_12m: colRent ? (parseFloat(String(r[colRent] || "0").replace(",", ".")) || null) : null,
+        data_vencimento,
       };
     })
     .filter(Boolean) as any[];

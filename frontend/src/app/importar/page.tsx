@@ -95,6 +95,18 @@ async function parsearClientes(fileRelatorio: File, filePositivador: File) {
 }
 
 // ── Parsers: Diversificador ───────────────────────────────────────────────────
+function parseDataExcel(v: any): string {
+  if (!v && v !== 0) return "";
+  if (typeof v === "number") {
+    const d = new Date(Math.round((v - 25569) * 86400000));
+    return d.toISOString().slice(0, 10);
+  }
+  const s = String(v).trim();
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return s.slice(0, 10);
+}
+
 function normalizeClasse(raw: string): string {
   const s = (raw || "").toLowerCase();
   if (s.includes("prev")) return "Previdência";
@@ -138,6 +150,7 @@ async function parsearDiversificador(file: File) {
   const colLiq   = mapCol(headers, "prazoderesgate", "liquidez", "prazo", "resgate");
   const colRent  = mapCol(headers, "rentabilidade12m", "rent12m", "rentabilidade");
   const colCNPJ  = mapCol(headers, "dsccnpjfundo", "cnpjfundo", "cnpjativo", "cnpj");
+  const colVenc  = mapCol(headers, "datvencimento", "datavencimento", "dtavencimento", "vencimento", "datavenc", "dtvenc");
 
   const parsed = rows.map((r: any) => {
     const valor = parseFloat(String(r[colValor!] ?? "0").replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0;
@@ -147,6 +160,8 @@ async function parsearDiversificador(file: File) {
     const produtoRaw = colProd ? String(r[colProd] || "") : "";
     const ativoRaw   = colAtivo ? String(r[colAtivo] || "—").trim() : "—";
     const cnpjRaw    = colCNPJ  ? String(r[colCNPJ]  || "").replace(/\D/g, "") : "";
+    const vencRaw    = colVenc  ? r[colVenc] : null;
+    const data_vencimento = parseDataExcel(vencRaw);
     return {
       codigo_conta:    conta,
       ativo:           ativoRaw,
@@ -157,6 +172,7 @@ async function parsearDiversificador(file: File) {
       liquidez_raw:    rawLiq || "—",
       liquidez_dias:   parseLiquidez(rawLiq),
       rent_12m:        colRent ? (parseFloat(String(r[colRent] || "0").replace(",", ".")) || null) : null,
+      data_vencimento,
     };
   }).filter(Boolean) as any[];
 
