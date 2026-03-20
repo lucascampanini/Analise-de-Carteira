@@ -221,13 +221,7 @@ async function parsearListaFundos(file: File) {
     .filter((f): f is NonNullable<typeof f> => f !== null);
 
   if (fundos.length === 0) throw new Error("Nenhum fundo encontrado. Verifique o formato (CNPJ_FUNDO, NOME_FUNDO...).");
-
-  // Debug: mostra quais colunas foram detectadas e valores da 1ª linha
-  const sample = rows.find((r: any) => colCNPJ && r[colCNPJ]);
-  const debugCols = `COLUNAS DETECTADAS: J="${colDiasCotiz}" val="${sample?.[colDiasCotiz]}" | K="${colTipoCotiz}" val="${sample?.[colTipoCotiz]}" | L="${colDiasLiq}" val="${sample?.[colDiasLiq]}" | M="${colTipoLiq}" val="${sample?.[colTipoLiq]}" | todos headers[9..12]="${headers.slice(9,13).join(', ')}"`;
-  console.log(debugCols);
-
-  return { fundos, debugCols };
+  return fundos;
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
@@ -339,9 +333,9 @@ export default function ImportarPage() {
     if (!user || !fileFund) return;
     setStFund("loading"); setMsgFund("");
     try {
-      const { fundos, debugCols } = await parsearListaFundos(fileFund);
+      const fundos = await parsearListaFundos(fileFund);
       const n = await importarFundosInfo(user.uid, fundos);
-      setMsgFund(`${n} fundos importados! | ${debugCols}`);
+      setMsgFund(`${n} fundos importados!`);
       setStFund("ok");
     } catch (err: any) {
       setMsgFund(err.message); setStFund("error");

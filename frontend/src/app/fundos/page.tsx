@@ -293,22 +293,8 @@ function CarteiraDiversificacaoPageInner() {
   const analise     = calcAnalise(posBruta);
   const clienteInfo = clientes.find((c) => c.codigo_conta === conta);
 
-  // DEBUG
-  const nFundosInfo = Object.keys(fundoMap).length;
-  const posComCNPJ  = posBruta.filter((p) => p.cnpj_fundo).length;
-  const posEnriq    = posBruta.filter((p) => p.liquidez_dias < 9999).length;
-
   return (
     <div className="space-y-6">
-      {/* DEBUG TEMPORÁRIO — remover após resolver liquidez */}
-      <div className="bg-yellow-50 border border-yellow-300 rounded-lg px-4 py-2 text-xs text-yellow-800 space-y-0.5">
-        <p><strong>Debug:</strong> fundos_info carregados: <strong>{nFundosInfo}</strong> entradas no mapa</p>
-        <p>Posições do cliente selecionado: <strong>{posBruta.length}</strong> | com CNPJ: <strong>{posComCNPJ}</strong> | com liquidez: <strong>{posEnriq}</strong></p>
-        <p>Exemplo cnpj_fundo da 1ª posição com CNPJ: <strong>{posBruta.find(p=>p.cnpj_fundo)?.cnpj_fundo || "nenhum"}</strong></p>
-        <p>liquidez_raw da 1ª posição: <strong>{JSON.stringify(posBruta[0]?.liquidez_raw)}</strong> | liquidez_dias: <strong>{posBruta[0]?.liquidez_dias}</strong></p>
-        <p>fundoMap[cnpj] prazo_fmt: <strong>{JSON.stringify(fundoMap[posBruta.find(p=>p.cnpj_fundo)?.cnpj_fundo || ""]?.prazo_fmt)}</strong></p>
-        <p>fundoMap[cnpj] total_dias: <strong>{fundoMap[posBruta.find(p=>p.cnpj_fundo)?.cnpj_fundo || ""]?.total_dias}</strong></p>
-      </div>
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Análise de Carteira</h1>
