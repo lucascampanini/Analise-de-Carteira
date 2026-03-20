@@ -246,6 +246,19 @@ export async function getPosicoes(uid: string, conta?: string) {
   const snap = await getDocs(col(uid, "posicoes"));
   let list = snap2arr(snap);
   if (conta) list = list.filter((p: any) => p.codigo_conta === conta);
+
+  // Deduplicar: se existirem docs antigos (ID aleatório) e novos (ID estável)
+  // para o mesmo ativo, manter apenas o mais recente por conta+ativo
+  const seen = new Map<string, any>();
+  list.forEach((p: any) => {
+    const key = `${p.codigo_conta}_${p.cnpj_fundo || p.ativo || ""}`;
+    const existing = seen.get(key);
+    if (!existing || (p.importado_em || "") >= (existing.importado_em || "")) {
+      seen.set(key, p);
+    }
+  });
+  list = Array.from(seen.values());
+
   return list.sort((a: any, b: any) => (b.valor || 0) - (a.valor || 0));
 }
 
@@ -264,18 +277,7 @@ export async function importarPosicoes(uid: string, conta: string, posicoes: any
 }
 
 export async function importarPosicoesMulti(uid: string, posicoes: any[]) {
-  // 1. Apaga TODOS os docs existentes das contas presentes no arquivo
-  //    (remove documentos com IDs antigos/aleatórios que causam duplicatas)
-  const contasNoArquivo = new Set(posicoes.map((p) => p.codigo_conta));
-  const snap = await getDocs(col(uid, "posicoes"));
-  const paraApagar = snap.docs.filter((d) => contasNoArquivo.has(d.data().codigo_conta));
-  for (let i = 0; i < paraApagar.length; i += 400) {
-    const b = writeBatch(db);
-    paraApagar.slice(i, i + 400).forEach((d) => b.delete(d.ref));
-    await b.commit();
-  }
-
-  // 2. Insere com ID estável (conta + cnpj/ativo)
+  // Puro upsert por ID estável — zero leituras/deletes extras, sem risco de quota
   for (let i = 0; i < posicoes.length; i += 400) {
     const b = writeBatch(db);
     posicoes.slice(i, i + 400).forEach((p) => {
