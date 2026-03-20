@@ -234,7 +234,7 @@ function StatusIcon({ status }: { status: Status }) {
 function FileInput({ label, accept, fileRef, onChange }: {
   label: string;
   accept?: string;
-  fileRef: React.RefObject<HTMLInputElement>;
+  fileRef: React.RefObject<HTMLInputElement | null>;
   onChange: (f: File) => void;
 }) {
   const [nome, setNome] = useState("");
