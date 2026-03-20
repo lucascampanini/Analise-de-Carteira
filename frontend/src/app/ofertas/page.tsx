@@ -6,6 +6,7 @@ import {
   getAllClientesOfertas, addClienteOferta, patchClienteOferta, deleteClienteOferta,
   importarClientesOferta, getClientes, getPosicoes, getFundosInfo,
 } from "@/lib/firestore";
+import { ModalNota } from "@/components/ui/ModalNota";
 
 // ── Liquidez helpers ──────────────────────────────────────────────────────────
 const norm = (s: string) =>
@@ -88,6 +89,7 @@ export default function OfertasPage() {
   const [novoValor, setNovoValor] = useState("");
   const [novoStatus, setNovoStatus] = useState<Status>("WHATSAPP");
   const [salvando, setSalvando] = useState(false);
+  const [modalNota, setModalNota] = useState<{ conta: string; nome: string } | null>(null);
 
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -286,6 +288,15 @@ export default function OfertasPage() {
 
   return (
     <div className="space-y-6">
+      {modalNota && (
+        <ModalNota
+          codigoConta={modalNota.conta}
+          nomeCliente={modalNota.nome}
+          onClose={() => setModalNota(null)}
+          onSaved={load}
+        />
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -495,8 +506,15 @@ export default function OfertasPage() {
                   <tr key={c.codigo_conta} className="hover:bg-slate-50/50 transition-colors">
                     {/* Nome */}
                     <td className="px-4 py-2 sticky left-0 bg-white border-r border-slate-100">
-                      <div className="font-medium text-slate-800 text-sm truncate max-w-[180px]">
-                        {c.nome || c.codigo_conta}
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-medium text-slate-800 text-sm truncate max-w-[160px]">
+                          {c.nome || c.codigo_conta}
+                        </span>
+                        <button
+                          onClick={() => setModalNota({ conta: c.codigo_conta, nome: c.nome || c.codigo_conta })}
+                          className="text-slate-300 hover:text-blue-600 transition-colors text-xs shrink-0"
+                          title="Nova anotação / tarefa / reunião"
+                        >📝</button>
                       </div>
                       <span className="text-xs text-slate-400">{c.codigo_conta}</span>
                     </td>
