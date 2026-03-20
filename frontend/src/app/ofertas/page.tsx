@@ -4,8 +4,33 @@ import { useAuth } from "@/contexts/AuthContext";
 import {
   getOfertas, addOferta, deleteOferta,
   getAllClientesOfertas, addClienteOferta, patchClienteOferta, deleteClienteOferta,
-  importarClientesOferta, getClientes, getPosicoes,
+  importarClientesOferta, getClientes, getPosicoes, getFundosInfo,
 } from "@/lib/firestore";
+
+// ── Liquidez helpers ──────────────────────────────────────────────────────────
+const norm = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+
+function buildFundoMap(fundosInfo: any[]): Record<string, any> {
+  const map: Record<string, any> = {};
+  fundosInfo.forEach((f) => {
+    if (f.cnpj)  map[f.cnpj]          = f;
+    if (f.nome)  map[norm(f.nome)]     = f;
+  });
+  return map;
+}
+
+function enriquecerLiquidez(posicoes: any[], fundoMap: Record<string, any>): any[] {
+  return posicoes.map((p) => {
+    const nomNorm = norm(p.ativo || "");
+    const info = (p.cnpj_fundo && fundoMap[p.cnpj_fundo]) || fundoMap[nomNorm] || null;
+    if (!info) return p;
+    return {
+      ...p,
+      liquidez_dias: info.total_dias,
+    };
+  });
+}
 import { brl } from "@/lib/formatters";
 import * as XLSX from "xlsx";
 
@@ -45,10 +70,11 @@ type CelulaAberta = { conta: string; ofertaId: string } | null;
 
 export default function OfertasPage() {
   const { user } = useAuth();
-  const [ofertas,  setOfertas]  = useState<any[]>([]);
-  const [ocItems,  setOcItems]  = useState<any[]>([]);
-  const [clientes, setClientes] = useState<any[]>([]);
-  const [posicoes, setPosicoes] = useState<any[]>([]);
+  const [ofertas,   setOfertas]   = useState<any[]>([]);
+  const [ocItems,   setOcItems]   = useState<any[]>([]);
+  const [clientes,  setClientes]  = useState<any[]>([]);
+  const [posicoes,  setPosicoes]  = useState<any[]>([]);
+  const [fundoMap,  setFundoMap]  = useState<Record<string, any>>({});
   const [showForm, setShowForm] = useState(false);
   const [loadingForm, setLoadingForm] = useState(false);
   const [form, setForm] = useState({ nome: "", descricao: "", data_liquidacao: "", roa: "" });
@@ -67,16 +93,19 @@ export default function OfertasPage() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [ofs, oc, cls, pos] = await Promise.all([
+    const [ofs, oc, cls, pos, fi] = await Promise.all([
       getOfertas(user.uid),
       getAllClientesOfertas(user.uid),
       getClientes(user.uid),
       getPosicoes(user.uid),
+      getFundosInfo(user.uid),
     ]);
+    const map = buildFundoMap(fi);
     setOfertas(ofs);
     setOcItems(oc);
     setClientes(cls);
-    setPosicoes(pos);
+    setFundoMap(map);
+    setPosicoes(enriquecerLiquidez(pos, map));
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
