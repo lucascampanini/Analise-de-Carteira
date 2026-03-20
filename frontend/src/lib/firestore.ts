@@ -264,7 +264,18 @@ export async function importarPosicoes(uid: string, conta: string, posicoes: any
 }
 
 export async function importarPosicoesMulti(uid: string, posicoes: any[]) {
-  // Upsert por ID estável (conta + cnpj/ativo) — evita apagar+reinserir (reduz writes ~3x)
+  // 1. Apaga TODOS os docs existentes das contas presentes no arquivo
+  //    (remove documentos com IDs antigos/aleatórios que causam duplicatas)
+  const contasNoArquivo = new Set(posicoes.map((p) => p.codigo_conta));
+  const snap = await getDocs(col(uid, "posicoes"));
+  const paraApagar = snap.docs.filter((d) => contasNoArquivo.has(d.data().codigo_conta));
+  for (let i = 0; i < paraApagar.length; i += 400) {
+    const b = writeBatch(db);
+    paraApagar.slice(i, i + 400).forEach((d) => b.delete(d.ref));
+    await b.commit();
+  }
+
+  // 2. Insere com ID estável (conta + cnpj/ativo)
   for (let i = 0; i < posicoes.length; i += 400) {
     const b = writeBatch(db);
     posicoes.slice(i, i + 400).forEach((p) => {
