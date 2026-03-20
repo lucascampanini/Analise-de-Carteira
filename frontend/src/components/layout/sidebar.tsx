@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart, FolderInput,
+  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart, FolderInput, Search,
 } from "lucide-react";
 
 const nav = [
@@ -11,6 +11,7 @@ const nav = [
   { href: "/clientes",      icon: Users,           label: "Clientes"  },
   { href: "/fundos",        icon: BarChart2,        label: "Carteira"  },
   { href: "/fundos-lista",  icon: PieChart,         label: "Fundos"    },
+  { href: "/buscar",        icon: Search,           label: "Buscar"    },
   { href: "/alertas",       icon: Bell,            label: "Alertas"   },
   { href: "/agenda",        icon: Calendar,        label: "Agenda"    },
   { href: "/ofertas",       icon: Briefcase,       label: "Ofertas"   },
