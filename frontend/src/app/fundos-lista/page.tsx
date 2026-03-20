@@ -42,11 +42,12 @@ function parsePrazoETipo(v: any): { dias: number | null; tipo: "DU" | "DC" } {
   return { dias: m ? parseInt(m[1]) : null, tipo };
 }
 
+const norm = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+
 function mapColFundo(headers: string[], ...opts: string[]) {
   return headers.find((h) =>
-    opts.some((o) =>
-      h.toLowerCase().replace(/[^a-z0-9]/g, "").includes(o.toLowerCase().replace(/[^a-z0-9]/g, ""))
-    )
+    opts.some((o) => norm(h).includes(norm(o)))
   );
 }
 

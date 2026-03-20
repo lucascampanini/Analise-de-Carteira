@@ -13,16 +13,15 @@ async function lerExcel(file: File): Promise<any[]> {
   return XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
 }
 
+const norm = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "");
+
 function mapCol(headers: string[], ...opts: string[]) {
-  return headers.find((h) =>
-    opts.some((o) => h.toLowerCase().replace(/[^a-z0-9]/g, "").includes(o.toLowerCase().replace(/[^a-z0-9]/g, "")))
-  );
+  return headers.find((h) => opts.some((o) => norm(h).includes(norm(o))));
 }
 
 function mapColExact(headers: string[], ...opts: string[]) {
-  return headers.find((h) =>
-    opts.some((o) => h.toLowerCase().replace(/[^a-z0-9]/g, "") === o.toLowerCase().replace(/[^a-z0-9]/g, ""))
-  );
+  return headers.find((h) => opts.some((o) => norm(h) === norm(o)));
 }
 
 // ── Parsers: Clientes ─────────────────────────────────────────────────────────
