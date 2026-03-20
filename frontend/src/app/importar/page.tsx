@@ -166,55 +166,59 @@ async function parsearDiversificador(file: File) {
 }
 
 // ── Parsers: Lista de Fundos ──────────────────────────────────────────────────
-function parsePrazoETipo(v: any): { dias: number | null; tipo: "DU" | "DC" } {
-  if (!v) return { dias: null, tipo: "DU" };
-  const s = String(v).toLowerCase().trim();
-  if (!s || s === "---" || s === "-") return { dias: null, tipo: "DU" };
-  const isUteis = s.includes("úteis") || s.includes("uteis") || s.includes(" du") || s.includes("d.u") || s.endsWith("du");
-  const tipo: "DU" | "DC" = isUteis ? "DU" : "DC";
-  const m = s.match(/(\d+)/);
-  return { dias: m ? parseInt(m[1]) : null, tipo };
-}
-
+// Estrutura XP: J=dias cotiz, K=tipo cotiz, L=dias liq, M=tipo liq
 async function parsearListaFundos(file: File) {
   const rows = await lerExcel(file);
   if (rows.length === 0) throw new Error("Planilha vazia.");
   const headers = Object.keys(rows[0]);
-  const colCNPJ  = mapCol(headers, "cnpjfundo", "cnpj");
-  const colNome  = mapCol(headers, "nomefundo", "nome", "denominacao", "denomsocial");
-  const colGest  = mapCol(headers, "nomegestora", "gestora", "gestor");
-  const colCotiz = mapCol(headers, "cotizacaoresgate", "cotizacao", "prazocotizacao", "prazocotiz", "diasparacotizacao");
-  const colLiq   = mapCol(headers, "liquidacaoresgate", "liquidacao", "prazoliquidacao", "prazopagto", "diasparaliquidacao");
-  const colTipoCot = mapCol(headers, "periodocotizacao", "tipocotizacao", "tipocotiz", "unidadecotiz");
-  const colTipoLiq = mapCol(headers, "periodoliquidacao", "tipoliquidacao", "tipoliq", "unidadeliq");
+  const colCNPJ = mapCol(headers, "cnpjfundo", "cnpj");
+  const colNome = mapCol(headers, "nomefundo", "nome", "denominacao", "denomsocial");
+  const colGest = mapCol(headers, "nomegestora", "gestora", "gestor");
+
+  // Detecta por nome; fallback por posição Excel (J=9, K=10, L=11, M=12)
+  const colDiasCotiz = mapCol(headers, "diascotiz", "prazocotiz", "cotizacao") ?? headers[9];
+  const colTipoCotiz = mapCol(headers, "tipocotiz", "periodocotiz", "unidcotiz", "modalidadecotiz") ?? headers[10];
+  const colDiasLiq   = mapCol(headers, "diasliq", "prazoliq", "liquidacao") ?? headers[11];
+  const colTipoLiq   = mapCol(headers, "tipoliq", "periodoliq", "unidliq", "modalidadeliq") ?? headers[12];
+
+  const parseDias = (v: any): number | null => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = parseInt(String(v));
+    return isNaN(n) ? null : n;
+  };
+  const parseTipo = (v: any): "DU" | "DC" => {
+    const s = norm(String(v || ""));
+    return s.includes("util") || s === "du" || s.endsWith("du") ? "DU" : "DC";
+  };
 
   const fundos = rows
     .filter((r) => colCNPJ && r[colCNPJ])
     .map((r) => {
-      const cnpj = String(r[colCNPJ!] || "").replace(/\D/g, "").padStart(14, "0");
-      const { dias: cotizDias, tipo: cotizTipoCell } = parsePrazoETipo(colCotiz ? r[colCotiz] : null);
-      const { dias: pagtoDias, tipo: pagtoTipoCell  } = parsePrazoETipo(colLiq   ? r[colLiq]   : null);
-      const tipoCotStr = String(colTipoCot ? r[colTipoCot] : "").toLowerCase();
-      const tipoPagStr = String(colTipoLiq ? r[colTipoLiq] : "").toLowerCase();
-      const tipoCot: "DU" | "DC" = tipoCotStr ? (tipoCotStr.includes("úteis") || tipoCotStr.includes("uteis") ? "DU" : "DC") : cotizTipoCell;
-      const tipoPag: "DU" | "DC" = tipoPagStr ? (tipoPagStr.includes("úteis") || tipoPagStr.includes("uteis") ? "DU" : "DC") : pagtoTipoCell;
+      const cnpj = String(r[colCNPJ!] || "").replace(/\D/g, "");
+      if (cnpj.length !== 14) return null;
+      const cotizDias = parseDias(r[colDiasCotiz]);
+      const tipoCot   = parseTipo(r[colTipoCotiz]);
+      const pagtoDias = parseDias(r[colDiasLiq]);
+      const tipoPag   = parseTipo(r[colTipoLiq]);
       const totalDias = (cotizDias ?? 0) + (pagtoDias ?? 0);
       const tipoFinal = tipoCot === "DU" && tipoPag === "DU" ? "DU" : "DC";
-      const prazo_fmt = cotizDias != null ? `D+${cotizDias} ${tipoCot} + D+${pagtoDias ?? 0} ${tipoPag} = D+${totalDias} ${tipoFinal}` : "—";
+      const prazo_fmt = cotizDias != null
+        ? `D+${cotizDias} ${tipoCot} + D+${pagtoDias ?? 0} ${tipoPag} = D+${totalDias} ${tipoFinal}`
+        : "—";
       return {
         cnpj,
-        nome_fundo:      colNome ? String(r[colNome] || "").trim() : "",
-        gestora:         colGest ? String(r[colGest] || "").trim() : "",
-        dias_cotizacao:  cotizDias,
-        tipo_dia_cotiz:  tipoCot,
-        dias_pagto:      pagtoDias,
-        tipo_dia_pagto:  tipoPag,
-        total_dias:      totalDias,
-        tipo_final:      tipoFinal,
+        nome_fundo:     colNome ? String(r[colNome] || "").trim() : "",
+        gestora:        colGest ? String(r[colGest] || "").trim() : "",
+        dias_cotizacao: cotizDias,
+        tipo_dia_cotiz: tipoCot,
+        dias_pagto:     pagtoDias,
+        tipo_dia_pagto: tipoPag,
+        total_dias:     totalDias,
+        tipo_final:     tipoFinal,
         prazo_fmt,
       };
     })
-    .filter((f) => f.cnpj.length === 14);
+    .filter((f): f is NonNullable<typeof f> => f !== null);
 
   if (fundos.length === 0) throw new Error("Nenhum fundo encontrado. Verifique o formato (CNPJ_FUNDO, NOME_FUNDO...).");
   return fundos;

@@ -51,42 +51,45 @@ function mapColFundo(headers: string[], ...opts: string[]) {
   );
 }
 
+// Estrutura XP lista-fundos: J=dias cotiz, K=tipo cotiz, L=dias liq, M=tipo liq
 function parsearListaFundos(rows: any[]): any[] {
   if (rows.length === 0) return [];
   const headers = Object.keys(rows[0]);
-  const colCNPJ  = mapColFundo(headers, "cnpjfundo", "cnpj");
-  const colNome  = mapColFundo(headers, "nomefundo", "nome", "denominacao", "denomsocial");
-  const colGest  = mapColFundo(headers, "nomegestora", "gestora", "gestor");
-  // Colunas M e N — cotização e liquidação (cada uma pode conter "Dias Úteis" / "Dias Corridos" no valor)
-  const colCotiz = mapColFundo(headers, "cotizacaoresgate", "cotizacao", "prazocotizacao", "prazocotiz", "diasparacotizacao");
-  const colLiq   = mapColFundo(headers, "liquidacaoresgate", "liquidacao", "prazoliquidacao", "prazopagto", "diasparaliquidacao");
-  // Colunas de tipo separadas (fallback caso não esteja embutido no valor)
-  const colTipoCot = mapColFundo(headers, "periodocotizacao", "tipocotizacao", "tipocotiz", "unidadecotiz");
-  const colTipoLiq = mapColFundo(headers, "periodoliquidacao", "tipoliquidacao", "tipoliq", "unidadeliq");
+  const colCNPJ = mapColFundo(headers, "cnpjfundo", "cnpj");
+  const colNome = mapColFundo(headers, "nomefundo", "nome", "denominacao", "denomsocial");
+  const colGest = mapColFundo(headers, "nomegestora", "gestora", "gestor");
+
+  // J=dias cotização, K=tipo cotização, L=dias liquidação, M=tipo liquidação
+  // Tenta por nome; fallback por posição (J=9, K=10, L=11, M=12)
+  const colDiasCotiz = mapColFundo(headers, "diascotiz", "prazocotiz", "cotizacao") ?? headers[9];
+  const colTipoCotiz = mapColFundo(headers, "tipocotiz", "periodocotiz", "unidcotiz", "modalidadecotiz") ?? headers[10];
+  const colDiasLiq   = mapColFundo(headers, "diasliq", "prazoliq", "liquidacao") ?? headers[11];
+  const colTipoLiq   = mapColFundo(headers, "tipoliq", "periodoliq", "unidliq", "modalidadeliq") ?? headers[12];
+
+  const parseDias = (v: any): number | null => {
+    if (v === null || v === undefined || v === "") return null;
+    const n = parseInt(String(v));
+    return isNaN(n) ? null : n;
+  };
+
+  const parseTipo = (v: any): "DU" | "DC" => {
+    const s = norm(String(v || ""));
+    return s.includes("util") || s === "du" || s.endsWith("du") ? "DU" : "DC";
+  };
 
   return rows
     .filter((r) => colCNPJ && r[colCNPJ])
     .map((r) => {
-      const cnpj = String(r[colCNPJ!] || "").replace(/\D/g, "").padStart(14, "0");
+      const cnpj = String(r[colCNPJ!] || "").replace(/\D/g, "");
+      if (cnpj.length !== 14) return null;
 
-      // Parseia dias e tipo de cada coluna (M e N)
-      const { dias: cotizDias, tipo: cotizTipoCell } = parsePrazoETipo(colCotiz ? r[colCotiz] : null);
-      const { dias: pagtoDias, tipo: pagtoTipoCell  } = parsePrazoETipo(colLiq   ? r[colLiq]   : null);
-
-      // Tipo final: prioriza coluna separada; fallback = tipo detectado na célula
-      const tipoCotStr = String(colTipoCot ? r[colTipoCot] : "").toLowerCase();
-      const tipoPagStr = String(colTipoLiq ? r[colTipoLiq] : "").toLowerCase();
-      const tipoCot: "DU" | "DC" = tipoCotStr
-        ? (tipoCotStr.includes("úteis") || tipoCotStr.includes("uteis") ? "DU" : "DC")
-        : cotizTipoCell;
-      const tipoPag: "DU" | "DC" = tipoPagStr
-        ? (tipoPagStr.includes("úteis") || tipoPagStr.includes("uteis") ? "DU" : "DC")
-        : pagtoTipoCell;
+      const cotizDias = parseDias(r[colDiasCotiz]);
+      const tipoCot   = parseTipo(r[colTipoCotiz]);
+      const pagtoDias = parseDias(r[colDiasLiq]);
+      const tipoPag   = parseTipo(r[colTipoLiq]);
 
       const totalDias = (cotizDias ?? 0) + (pagtoDias ?? 0);
-      // Se ambos DU → DU; caso contrário DC (mais conservador)
       const tipoFinal = tipoCot === "DU" && tipoPag === "DU" ? "DU" : "DC";
-
       const prazo_fmt = cotizDias != null
         ? `D+${cotizDias} ${tipoCot} + D+${pagtoDias ?? 0} ${tipoPag} = D+${totalDias} ${tipoFinal}`
         : "—";
@@ -95,16 +98,16 @@ function parsearListaFundos(rows: any[]): any[] {
         cnpj,
         nome_fundo:     colNome ? String(r[colNome] || "").trim() : "—",
         gestora:        colGest ? String(r[colGest] || "").trim() : "—",
-        prazo_cotiz:    cotizDias,
-        prazo_pagto:    pagtoDias,
+        dias_cotizacao: cotizDias,
         tipo_dia_cotiz: tipoCot,
+        dias_pagto:     pagtoDias,
         tipo_dia_pagto: tipoPag,
         total_dias:     totalDias,
         tipo_final:     tipoFinal,
         prazo_fmt,
       };
     })
-    .filter((f) => f.cnpj.length === 14);
+    .filter((f): f is NonNullable<typeof f> => f !== null);
 }
 
 // ── Cruzamento posições × fundos_info ───────────────────────────────────────
