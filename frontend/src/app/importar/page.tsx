@@ -147,7 +147,7 @@ async function parsearDiversificador(file: File) {
     const rawLiq   = colLiq  ? String(r[colLiq]   || "")        : "";
     const produtoRaw = colProd ? String(r[colProd] || "") : "";
     const ativoRaw   = colAtivo ? String(r[colAtivo] || "—").trim() : "—";
-    const cnpjRaw    = colCNPJ  ? String(r[colCNPJ]  || "").replace(/\D/g, "").padStart(14, "0") : "";
+    const cnpjRaw    = colCNPJ  ? String(r[colCNPJ]  || "").replace(/\D/g, "") : "";
     return {
       codigo_conta:    conta,
       ativo:           ativoRaw,
