@@ -68,8 +68,8 @@ function parsearListaFundos(rows: any[]): any[] {
 
   const parseDias = (v: any): number | null => {
     if (v === null || v === undefined || v === "") return null;
-    const n = parseInt(String(v));
-    return isNaN(n) ? null : n;
+    const m = String(v).match(/\d+/);
+    return m ? parseInt(m[0]) : null;
   };
 
   const parseTipo = (v: any): "DU" | "DC" => {
