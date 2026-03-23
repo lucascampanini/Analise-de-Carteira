@@ -32,11 +32,11 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-svn-carbon flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden">
         {/* Header */}
-        <div className="bg-slate-900 px-8 py-7 flex items-center gap-3">
-          <TrendingUp className="text-blue-400" size={28} />
+        <div className="bg-svn-carbon px-8 py-7 flex items-center gap-3">
+          <TrendingUp className="text-svn-skies" size={28} />
           <div>
             <p className="text-white font-bold text-lg leading-tight">SVN Investimentos</p>
             <p className="text-slate-400 text-xs">Plataforma CRM · Assessores</p>
@@ -66,7 +66,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="seu@email.com"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby"
               />
             </div>
             <div>
@@ -77,7 +77,7 @@ export default function LoginPage() {
                 value={senha}
                 onChange={(e) => setSenha(e.target.value)}
                 placeholder="••••••••"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby"
               />
             </div>
           </div>
@@ -85,7 +85,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full bg-blue-600 text-white py-2.5 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            className="w-full bg-svn-ruby text-white py-2.5 rounded-lg font-medium hover:bg-svn-ruby-dark disabled:opacity-50 transition-colors"
           >
             {loading ? "Entrando..." : "Entrar"}
           </button>

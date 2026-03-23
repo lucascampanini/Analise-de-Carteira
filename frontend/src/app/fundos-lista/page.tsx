@@ -154,7 +154,7 @@ function cruzarPosicoesFundos(posicoes: any[], fundosInfo: any[]) {
 
 const LIQ_COR = (dias: number) => {
   if (dias <= 1)  return "bg-emerald-100 text-emerald-700";
-  if (dias <= 5)  return "bg-blue-100 text-blue-700";
+  if (dias <= 5)  return "bg-[#f5e8e7] text-svn-ruby";
   if (dias <= 30) return "bg-amber-100 text-amber-700";
   return "bg-red-100 text-red-600";
 };
@@ -268,12 +268,12 @@ export default function FundosListaPage() {
           <div className="flex items-center gap-3 flex-wrap">
             <input value={busca} onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar fundo ou gestora..."
-              className="flex-1 max-w-sm border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+              className="flex-1 max-w-sm border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby" />
             <div className="flex gap-1">
               {classes.map((c) => (
                 <button key={c} onClick={() => setFiltroClasse(c)}
                   className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                    filtroClasse === c ? "bg-blue-600 text-white border-blue-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
+                    filtroClasse === c ? "bg-svn-ruby text-white border-blue-600" : "border-slate-200 text-slate-600 hover:bg-slate-50"
                   }`}>
                   {c}
                 </button>
@@ -321,7 +321,7 @@ export default function FundosListaPage() {
                         <td className="px-4 py-3 text-right">
                           <div className="flex items-center justify-end gap-2">
                             <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-blue-500 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
+                              <div className="h-full bg-svn-ruby rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
                             </div>
                             <span className="text-xs text-slate-500 w-10 text-right">{pct.toFixed(1)}%</span>
                           </div>

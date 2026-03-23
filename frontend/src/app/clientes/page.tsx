@@ -11,7 +11,7 @@ import { AnotacoesSection } from "@/components/ui/AnotacoesSection";
 import * as XLSX from "xlsx";
 
 const suitabilityColor: Record<string, string> = {
-  Conservador: "bg-blue-100 text-blue-700",
+  Conservador: "bg-[#f5e8e7] text-svn-ruby",
   Moderado:    "bg-amber-100 text-amber-700",
   Arrojado:    "bg-purple-100 text-purple-700",
   Agressivo:   "bg-red-100 text-red-700",
@@ -58,7 +58,7 @@ function ClientePerfil({ conta, clientes, onVoltar }: { conta: string; clientes:
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3">
-        <button onClick={onVoltar} className="text-blue-600 text-sm">← Clientes</button>
+        <button onClick={onVoltar} className="text-svn-ruby text-sm">← Clientes</button>
         <h1 className="text-2xl font-bold text-slate-800">
           {cliente?.nome || `Conta ${conta}`}
         </h1>
@@ -293,7 +293,7 @@ function ClientesLista({
               className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
                 fileRelatorio
                   ? "bg-emerald-50 border-emerald-400 text-emerald-700"
-                  : "bg-white border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                  : "bg-white border-slate-300 text-slate-600 hover:border-svn-ruby hover:text-svn-ruby"
               }`}>
               {fileRelatorio ? `✓ ${fileRelatorio.name.slice(0, 20)}…` : "1. Rel. Saldo (nome)"}
             </button>
@@ -303,14 +303,14 @@ function ClientesLista({
               className={`text-xs px-3 py-2 rounded-lg border transition-colors ${
                 filePositivador
                   ? "bg-emerald-50 border-emerald-400 text-emerald-700"
-                  : "bg-white border-slate-300 text-slate-600 hover:border-blue-400 hover:text-blue-600"
+                  : "bg-white border-slate-300 text-slate-600 hover:border-svn-ruby hover:text-svn-ruby"
               }`}>
               {filePositivador ? `✓ ${filePositivador.name.slice(0, 20)}…` : "2. Positivador (net)"}
             </button>
 
             {/* Botão importar — só ativo quando os dois estão selecionados */}
             <button onClick={importarDoisExcels} disabled={!podeImportar}
-              className="text-xs bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+              className="text-xs bg-svn-ruby text-white px-3 py-2 rounded-lg hover:bg-svn-ruby-dark disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
               {importando ? "Importando..." : "⬆ Importar"}
             </button>
           </div>
@@ -355,7 +355,7 @@ function ClientesLista({
       <div className="flex items-center gap-3">
         <input value={busca} onChange={(e) => setBusca(e.target.value)}
           placeholder="Buscar por nome, código ou profissão..."
-          className="flex-1 max-w-sm border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          className="flex-1 max-w-sm border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby" />
         <span className="text-xs text-slate-400">{filtrados.length} clientes</span>
       </div>
 
@@ -392,7 +392,7 @@ function ClientesLista({
                         <span className="font-medium text-slate-800">{c.nome}</span>
                         {aniv && aniv.dias <= 30 && <span className="text-xs">🎂</span>}
                         <button onClick={() => setModalNota({ conta: c.codigo_conta, nome: c.nome })}
-                          className="text-slate-300 hover:text-blue-600 transition-colors text-xs" title="Nova anotação">📝</button>
+                          className="text-slate-300 hover:text-svn-ruby transition-colors text-xs" title="Nova anotação">📝</button>
                       </div>
                       <span className="text-xs text-slate-400 font-mono">{c.codigo_conta}</span>
                     </td>
@@ -420,7 +420,7 @@ function ClientesLista({
                           Carteira →
                         </Link>
                         <button onClick={() => onSelectConta(c.codigo_conta)}
-                          className="text-blue-600 hover:text-blue-800 font-medium text-xs">
+                          className="text-svn-ruby hover:text-blue-800 font-medium text-xs">
                           Perfil →
                         </button>
                       </div>

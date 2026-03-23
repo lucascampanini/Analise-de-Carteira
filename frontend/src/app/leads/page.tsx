@@ -18,7 +18,7 @@ const ESTAGIO_COR: Record<string, string> = {
 };
 const ESTAGIO_HEADER: Record<string, string> = {
   PROSPECTO: "bg-slate-700 text-white",
-  CONTATO:   "bg-blue-600 text-white",
+  CONTATO:   "bg-svn-ruby text-white",
   PROPOSTA:  "bg-amber-500 text-white",
   CLIENTE:   "bg-emerald-600 text-white",
 };
@@ -134,7 +134,7 @@ export default function LeadsPage() {
             {importando ? "Importando..." : "⬆ Importar Excel"}
           </button>
           <button onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+            className="bg-svn-ruby text-white text-sm px-4 py-2 rounded-lg hover:bg-svn-ruby-dark transition-colors">
             + Novo Lead
           </button>
         </div>
@@ -155,13 +155,13 @@ export default function LeadsPage() {
                 <label className="text-xs font-medium text-slate-600 block mb-1">{label}</label>
                 <input required={required} value={(form as any)[key]}
                   onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby" />
               </div>
             ))}
             <div>
               <label className="text-xs font-medium text-slate-600 block mb-1">Origem</label>
               <select value={form.origem} onChange={(e) => setForm((f) => ({ ...f, origem: e.target.value }))}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby">
                 <option value="">Selecione</option>
                 {["INDICACAO","EVENTO","LINKEDIN","COLD_CALL","OUTRO"].map((o) => (
                   <option key={o} value={o}>{o}</option>
@@ -170,7 +170,7 @@ export default function LeadsPage() {
             </div>
             <div className="flex gap-3 pt-2">
               <button type="submit" disabled={loading}
-                className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+                className="flex-1 bg-svn-ruby text-white py-2 rounded-lg font-medium hover:bg-svn-ruby-dark disabled:opacity-50">
                 {loading ? "Salvando..." : "Salvar"}
               </button>
               <button type="button" onClick={() => setShowForm(false)}
@@ -204,7 +204,7 @@ export default function LeadsPage() {
                     </span>
                   )}
                   {lead.data_proximo_contato && (
-                    <p className="text-xs text-blue-600 mt-1">📅 {fmtDate(lead.data_proximo_contato)}</p>
+                    <p className="text-xs text-svn-ruby mt-1">📅 {fmtDate(lead.data_proximo_contato)}</p>
                   )}
                   <div className="flex gap-1.5 mt-2 flex-wrap">
                     {ESTAGIOS.filter((e) => e !== estagio).map((e) => (

@@ -99,7 +99,7 @@ export default function AlertasPage() {
               const atencao  = p.dias_para_venc <= 15;
               const corBg    = urgente ? "bg-red-50/40" : atencao ? "bg-amber-50/30" : "";
               const corDias  = urgente ? "text-red-600" : atencao ? "text-amber-600" : "text-slate-500";
-              const corBadge = urgente ? "bg-red-100 text-red-700" : atencao ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700";
+              const corBadge = urgente ? "bg-red-100 text-red-700" : atencao ? "bg-amber-100 text-amber-700" : "bg-[#f5e8e7] text-svn-ruby";
               return (
                 <div key={i} className={`px-5 py-3 flex items-center justify-between gap-4 ${corBg}`}>
                   <div className="flex-1 min-w-0">

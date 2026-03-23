@@ -245,7 +245,7 @@ async function parsearListaFundos(file: File) {
 type Status = "idle" | "loading" | "ok" | "error";
 
 function StatusIcon({ status }: { status: Status }) {
-  if (status === "loading") return <Loader2 size={18} className="animate-spin text-blue-500" />;
+  if (status === "loading") return <Loader2 size={18} className="animate-spin text-svn-ruby" />;
   if (status === "ok")      return <CheckCircle size={18} className="text-emerald-500" />;
   if (status === "error")   return <AlertCircle size={18} className="text-red-500" />;
   return null;
@@ -261,7 +261,7 @@ function FileInput({ label, accept, fileRef, onChange }: {
   return (
     <div>
       <p className="text-xs text-slate-500 mb-1">{label}</p>
-      <label className="flex items-center gap-2 cursor-pointer border border-dashed border-slate-300 rounded-lg px-3 py-2 hover:border-blue-400 hover:bg-blue-50 transition-colors">
+      <label className="flex items-center gap-2 cursor-pointer border border-dashed border-slate-300 rounded-lg px-3 py-2 hover:border-svn-ruby hover:bg-[#f5e8e7] transition-colors">
         <Upload size={15} className="text-slate-400" />
         <span className="text-sm text-slate-600 truncate">{nome || "Selecionar arquivo…"}</span>
         <input
@@ -397,7 +397,7 @@ export default function ImportarPage() {
           <button
             onClick={runClientes}
             disabled={!fileRel || !filePos || isImporting}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+            className="px-4 py-2 bg-svn-ruby text-white text-sm rounded-lg hover:bg-svn-ruby-dark disabled:opacity-40 transition-colors"
           >
             Importar Clientes
           </button>
@@ -418,7 +418,7 @@ export default function ImportarPage() {
           <button
             onClick={runDiversificador}
             disabled={!fileDiv || isImporting}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+            className="px-4 py-2 bg-svn-ruby text-white text-sm rounded-lg hover:bg-svn-ruby-dark disabled:opacity-40 transition-colors"
           >
             Importar Posições
           </button>
@@ -439,7 +439,7 @@ export default function ImportarPage() {
           <button
             onClick={runListaFundos}
             disabled={!fileFund || isImporting}
-            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
+            className="px-4 py-2 bg-svn-ruby text-white text-sm rounded-lg hover:bg-svn-ruby-dark disabled:opacity-40 transition-colors"
           >
             Importar Fundos
           </button>

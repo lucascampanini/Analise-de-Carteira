@@ -78,7 +78,7 @@ export default function BuscarPage() {
           value={busca}
           onChange={(e) => setBusca(e.target.value)}
           placeholder="Digite o nome do ativo, fundo ou CNPJ..."
-          className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+          className="w-full border border-slate-200 rounded-xl pl-10 pr-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby shadow-sm"
         />
         {busca && (
           <button
@@ -166,7 +166,7 @@ export default function BuscarPage() {
                   const liqCor =
                     p.liquidez_dias == null  ? "text-slate-300"
                     : p.liquidez_dias <= 1   ? "text-emerald-600 font-semibold"
-                    : p.liquidez_dias <= 5   ? "text-blue-600"
+                    : p.liquidez_dias <= 5   ? "text-svn-ruby"
                     : p.liquidez_dias <= 30  ? "text-amber-600"
                     : "text-slate-500";
 
@@ -183,7 +183,7 @@ export default function BuscarPage() {
                         <div className="flex items-center justify-end gap-2">
                           <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
                             <div
-                              className="h-full bg-blue-400 rounded-full"
+                              className="h-full bg-svn-ruby rounded-full"
                               style={{ width: `${Math.min(pctCarteira, 100)}%` }}
                             />
                           </div>

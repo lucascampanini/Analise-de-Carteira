@@ -51,7 +51,7 @@ const STATUS_COR: Record<Status, string> = {
   PENDENTE:     "bg-slate-100 text-slate-500",
   WHATSAPP:     "bg-green-100 text-green-700",
   RESERVADO:    "bg-amber-100 text-amber-700",
-  PUSH_ENVIADO: "bg-blue-100 text-blue-700",
+  PUSH_ENVIADO: "bg-[#f5e8e7] text-svn-ruby",
   FINALIZADO:   "bg-emerald-100 text-emerald-700",
 };
 const STATUS_SHORT: Record<Status, string> = {
@@ -322,7 +322,7 @@ export default function OfertasPage() {
             {importando ? "Importando..." : "⬆ Importar Excel"}
           </button>
           <button onClick={() => setShowForm(true)}
-            className="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+            className="bg-svn-ruby text-white text-sm px-4 py-2 rounded-lg hover:bg-svn-ruby-dark transition-colors">
             + Nova Oferta
           </button>
         </div>
@@ -338,32 +338,32 @@ export default function OfertasPage() {
               <input required value={form.nome}
                 onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
                 placeholder="Ex: DI-2029, NTN-B 35, Euro Garden..."
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby" />
             </div>
             <div>
               <label className="text-xs font-medium text-slate-600 block mb-1">Descrição</label>
               <input value={form.descricao}
                 onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby" />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-medium text-slate-600 block mb-1">Data de liquidação</label>
                 <input type="date" value={form.data_liquidacao}
                   onChange={(e) => setForm((f) => ({ ...f, data_liquidacao: e.target.value }))}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby" />
               </div>
               <div>
                 <label className="text-xs font-medium text-slate-600 block mb-1">ROA (%)</label>
                 <input type="number" step="0.01" min="0" value={form.roa}
                   onChange={(e) => setForm((f) => ({ ...f, roa: e.target.value }))}
                   placeholder="0.82"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby" />
               </div>
             </div>
             <div className="flex gap-3 pt-2">
               <button type="submit" disabled={loadingForm}
-                className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:opacity-50">
+                className="flex-1 bg-svn-ruby text-white py-2 rounded-lg font-medium hover:bg-svn-ruby-dark disabled:opacity-50">
                 {loadingForm ? "Salvando..." : "Criar Oferta"}
               </button>
               <button type="button" onClick={() => setShowForm(false)}
@@ -379,7 +379,7 @@ export default function OfertasPage() {
       <div className="grid grid-cols-3 gap-4">
         {[
           { label: "Volume total ofertado", valor: brl(totalVolume),     cor: "text-slate-800"   },
-          { label: "Receita prevista",       valor: brl(totalReceita),    cor: "text-blue-700"    },
+          { label: "Receita prevista",       valor: brl(totalReceita),    cor: "text-svn-ruby"    },
           { label: "Receita finalizada",     valor: brl(totalFinalizado), cor: "text-emerald-700" },
         ].map((k) => (
           <div key={k.label} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
@@ -424,7 +424,7 @@ export default function OfertasPage() {
                     </td>
                     <td className="px-5 py-3 text-right font-medium">{brl(o.total_ofertado)}</td>
                     <td className="px-5 py-3 text-right text-slate-600">{o.roa?.toFixed(2)}%</td>
-                    <td className="px-5 py-3 text-right text-blue-700 font-semibold">{brl(o.receita_em_aberto)}</td>
+                    <td className="px-5 py-3 text-right text-svn-ruby font-semibold">{brl(o.receita_em_aberto)}</td>
                     <td className="px-5 py-3 text-right text-emerald-700 font-semibold">{brl(o.receita_confirmada)}</td>
                     <td className="px-5 py-3 text-right">
                       {o.data_liquidacao ? (
@@ -462,7 +462,7 @@ export default function OfertasPage() {
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar cliente..."
-            className="max-w-xs flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="max-w-xs flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby"
           />
           <span className="text-xs text-slate-400 ml-auto shrink-0">
             {clientesTabela.length} clientes · {colunas.length} oferta{colunas.length !== 1 ? "s" : ""}
@@ -486,17 +486,17 @@ export default function OfertasPage() {
                       <th key={o.id} className="px-4 py-3 text-center min-w-[160px]">
                         <button
                           onClick={() => setFiltroOfertaId(ativo ? null : o.id)}
-                          className={`w-full rounded-lg px-2 py-1 transition-colors ${ativo ? "bg-blue-100 ring-1 ring-blue-400" : "hover:bg-slate-100"}`}
+                          className={`w-full rounded-lg px-2 py-1 transition-colors ${ativo ? "bg-[#f5e8e7] ring-1 ring-svn-ruby" : "hover:bg-slate-100"}`}
                           title={ativo ? "Remover filtro" : "Filtrar por esta oferta"}
                         >
-                          <div className={`font-semibold ${ativo ? "text-blue-700" : "text-slate-700"}`}>{o.nome}</div>
+                          <div className={`font-semibold ${ativo ? "text-svn-ruby" : "text-slate-700"}`}>{o.nome}</div>
                           <div className="text-slate-400 font-normal">{o.roa?.toFixed(2)}% ROA</div>
                           {o.data_liquidacao && (
                             <div className="text-slate-400 font-normal">
                               {new Date(o.data_liquidacao + "T00:00:00").toLocaleDateString("pt-BR")}
                             </div>
                           )}
-                          {ativo && <div className="text-xs text-blue-500 font-medium mt-0.5">▼ filtrando</div>}
+                          {ativo && <div className="text-xs text-svn-ruby font-medium mt-0.5">▼ filtrando</div>}
                         </button>
                       </th>
                     );
@@ -514,7 +514,7 @@ export default function OfertasPage() {
                         </span>
                         <button
                           onClick={() => setModalNota({ conta: c.codigo_conta, nome: c.nome || c.codigo_conta })}
-                          className="text-slate-300 hover:text-blue-600 transition-colors text-xs shrink-0"
+                          className="text-slate-300 hover:text-svn-ruby transition-colors text-xs shrink-0"
                           title="Nova anotação / tarefa / reunião"
                         >📝</button>
                       </div>
@@ -537,7 +537,7 @@ export default function OfertasPage() {
                     {/* Liquidez D+6 */}
                     <td className="px-4 py-2 text-right text-xs font-medium whitespace-nowrap">
                       {liquidezD6(c.codigo_conta) > 0
-                        ? <span className="text-blue-700">{brl(liquidezD6(c.codigo_conta))}</span>
+                        ? <span className="text-svn-ruby">{brl(liquidezD6(c.codigo_conta))}</span>
                         : <span className="text-slate-300">—</span>
                       }
                     </td>
@@ -557,7 +557,7 @@ export default function OfertasPage() {
                                 onChange={(v) => atualizarValor(p, v)}
                               />
                               {p.valor_ofertado && o.roa > 0 && (
-                                <div className="text-xs text-blue-600 font-medium">
+                                <div className="text-xs text-svn-ruby font-medium">
                                   {brl((p.valor_ofertado * o.roa) / 100)}
                                 </div>
                               )}
@@ -578,7 +578,7 @@ export default function OfertasPage() {
 
                       // Célula com painel de vinculação aberto
                       if (estaAberta) return (
-                        <td key={o.id} className="px-2 py-2 bg-blue-50 align-middle">
+                        <td key={o.id} className="px-2 py-2 bg-[#f5e8e7] align-middle">
                           <div className="space-y-1.5">
                             <input
                               autoFocus
@@ -586,12 +586,12 @@ export default function OfertasPage() {
                               value={novoValor}
                               onChange={(e) => setNovoValor(e.target.value)}
                               placeholder="Valor R$"
-                              className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full border border-slate-300 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-svn-ruby"
                             />
                             <select
                               value={novoStatus}
                               onChange={(e) => setNovoStatus(e.target.value as Status)}
-                              className="w-full border border-slate-300 rounded px-1 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full border border-slate-300 rounded px-1 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-svn-ruby"
                             >
                               {STATUSES.map((s) => (
                                 <option key={s} value={s}>{STATUS_SHORT[s]}</option>
@@ -601,7 +601,7 @@ export default function OfertasPage() {
                               <button
                                 onClick={() => vincular(c)}
                                 disabled={salvando}
-                                className="flex-1 bg-blue-600 text-white text-xs py-1 rounded hover:bg-blue-700 disabled:opacity-50"
+                                className="flex-1 bg-svn-ruby text-white text-xs py-1 rounded hover:bg-svn-ruby-dark disabled:opacity-50"
                               >
                                 {salvando ? "..." : "OK"}
                               </button>
@@ -621,7 +621,7 @@ export default function OfertasPage() {
                         <td key={o.id} className="px-3 py-2 text-center">
                           <button
                             onClick={() => abrirCelula(c.codigo_conta, o.id)}
-                            className="text-slate-300 hover:text-blue-600 hover:bg-blue-50 w-7 h-7 rounded-full text-lg leading-none transition-colors"
+                            className="text-slate-300 hover:text-svn-ruby hover:bg-[#f5e8e7] w-7 h-7 rounded-full text-lg leading-none transition-colors"
                             title="Vincular à oferta"
                           >
                             +
@@ -647,7 +647,7 @@ export default function OfertasPage() {
                     return (
                       <td key={o.id} className="px-3 py-3 text-center">
                         <div className="text-slate-800">{brl(oferta?.total_ofertado || 0)}</div>
-                        <div className="text-blue-600">{brl(oferta?.receita_em_aberto || 0)}</div>
+                        <div className="text-svn-ruby">{brl(oferta?.receita_em_aberto || 0)}</div>
                       </td>
                     );
                   })}
@@ -727,7 +727,7 @@ function ValorCelula({ valor, onChange }: { valor: number | null; onChange: (v: 
   return (
     <button
       onClick={() => { setDraft(String(valor || "")); setEditando(true); }}
-      className="font-semibold text-slate-800 hover:text-blue-600 text-sm transition-colors w-full text-center"
+      className="font-semibold text-slate-800 hover:text-svn-ruby text-sm transition-colors w-full text-center"
       title="Clique para editar"
     >
       {valor ? brl(valor) : <span className="text-slate-300 text-xs italic">editar</span>}

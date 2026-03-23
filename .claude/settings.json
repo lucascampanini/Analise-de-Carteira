@@ -37,7 +37,18 @@
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'File modified - remember to run tests'"
+            "command": "python \"C:/Users/lucas/Desktop/Analise-de-Carteira/.claude/hooks/post_write.py\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python -c \"\nimport os, sys\ncmd = os.environ.get('CLAUDE_TOOL_INPUT_COMMAND', '')\n# Bloqueia comandos destrutivos nao autorizados\ndangerous = ['git push --force', 'git reset --hard', 'DROP TABLE', 'DELETE FROM']\nfor d in dangerous:\n    if d.lower() in cmd.lower():\n        print(f'BLOQUEADO: comando perigoso detectado: {d}', file=sys.stderr)\n        sys.exit(1)\n\""
           }
         ]
       }

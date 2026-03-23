@@ -327,7 +327,7 @@ function CarteiraDiversificacaoPageInner() {
           <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
             onChange={(e) => e.target.files?.[0] && importarExcel(e.target.files[0])} />
           <button onClick={() => fileRef.current?.click()} disabled={importando}
-            className="text-xs bg-blue-600 text-white px-3 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
+            className="text-xs bg-svn-ruby text-white px-3 py-2 rounded-lg hover:bg-svn-ruby-dark disabled:opacity-50 transition-colors">
             {importando ? "Importando..." : "⬆ Importar Excel"}
           </button>
         </div>
@@ -337,7 +337,7 @@ function CarteiraDiversificacaoPageInner() {
         <div className="flex items-center gap-2">
           <label className="text-sm font-medium text-slate-600 shrink-0">Cliente</label>
           <select value={conta} onChange={(e) => { setConta(e.target.value); setBusca(""); }}
-            className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[220px]">
+            className="border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby min-w-[220px]">
             <option value="">— selecione —</option>
             {clientes.map((c) => (
               <option key={c.codigo_conta} value={c.codigo_conta}>
@@ -461,7 +461,7 @@ function CarteiraDiversificacaoPageInner() {
               <h2 className="font-semibold text-slate-800 shrink-0">Todas as Posições</h2>
               <input value={busca} onChange={(e) => setBusca(e.target.value)}
                 placeholder="Buscar ativo, classe ou gestora..."
-                className="flex-1 max-w-sm border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                className="flex-1 max-w-sm border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby" />
               <span className="text-xs text-slate-400 ml-auto shrink-0">{posFiltradas.length} posições</span>
             </div>
             <div className="overflow-x-auto">
@@ -481,7 +481,7 @@ function CarteiraDiversificacaoPageInner() {
                   {posFiltradas.map((p, i) => {
                     const pct = (p.valor / analise.pl) * 100;
                     const liqCor = p.liquidez_dias <= 1  ? "bg-emerald-100 text-emerald-700"
-                                 : p.liquidez_dias <= 5  ? "bg-blue-100 text-blue-700"
+                                 : p.liquidez_dias <= 5  ? "bg-[#f5e8e7] text-svn-ruby"
                                  : p.liquidez_dias <= 30 ? "bg-amber-100 text-amber-700"
                                  :                         "bg-red-100 text-red-600";
                     return (

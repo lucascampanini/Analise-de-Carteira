@@ -28,10 +28,10 @@ export function Sidebar() {
   const { user, logout } = useAuth();
 
   return (
-    <aside className="fixed left-0 top-0 h-screen w-56 bg-slate-900 text-slate-100 flex flex-col z-30">
+    <aside className="fixed left-0 top-0 h-screen w-56 bg-svn-carbon text-slate-100 flex flex-col z-30">
       {/* Logo */}
-      <div className="flex items-center gap-2 px-5 py-5 border-b border-slate-700">
-        <TrendingUp className="text-blue-400" size={22} />
+      <div className="flex items-center gap-2 px-5 py-5 border-b border-[#2e2420]">
+        <TrendingUp className="text-svn-skies" size={22} />
         <span className="font-bold text-white text-sm leading-tight">
           SVN<br />Investimentos
         </span>
@@ -47,8 +47,8 @@ export function Sidebar() {
               href={href}
               className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                 active
-                  ? "bg-blue-600 text-white"
-                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+                  ? "bg-svn-ruby text-white"
+                  : "text-slate-400 hover:bg-[#2e2420] hover:text-white"
               }`}
             >
               <Icon size={18} />
@@ -59,7 +59,7 @@ export function Sidebar() {
 
         {/* Separador */}
         <div className="pt-2 pb-1 px-3">
-          <p className="text-xs text-slate-600 uppercase tracking-wider">Ferramentas</p>
+          <p className="text-xs text-[#5a4a44] uppercase tracking-wider">Ferramentas</p>
         </div>
 
         {navExterno.map(({ href, icon: Icon, label }) => (
@@ -68,7 +68,7 @@ export function Sidebar() {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-slate-400 hover:bg-slate-800 hover:text-white"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-slate-400 hover:bg-[#2e2420] hover:text-white"
           >
             <Icon size={18} />
             {label}
@@ -78,7 +78,7 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-slate-700 space-y-3">
+      <div className="px-4 py-4 border-t border-[#2e2420] space-y-3">
         {user && (
           <div className="text-xs text-slate-400 truncate px-1">
             {user.displayName || user.email}
@@ -86,7 +86,7 @@ export function Sidebar() {
         )}
         <button
           onClick={logout}
-          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+          className="flex items-center gap-2 w-full px-3 py-2 rounded-lg text-sm text-slate-400 hover:bg-[#2e2420] hover:text-white transition-colors"
         >
           <LogOut size={16} />
           Sair

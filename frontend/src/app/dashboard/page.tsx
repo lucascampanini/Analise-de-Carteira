@@ -9,7 +9,7 @@ import { Users, TrendingUp, Calendar, CheckSquare, Target, Briefcase } from "luc
 
 const STATUS_COR: Record<string, string> = {
   PENDENTE:     "bg-slate-100 text-slate-600",
-  WHATSAPP:     "bg-blue-100 text-blue-700",
+  WHATSAPP:     "bg-[#f5e8e7] text-svn-ruby",
   RESERVADO:    "bg-amber-100 text-amber-700",
   PUSH_ENVIADO: "bg-violet-100 text-violet-700",
   FINALIZADO:   "bg-emerald-100 text-emerald-700",
@@ -19,7 +19,7 @@ const STATUS_COR: Record<string, string> = {
 const ESTAGIOS = ["PROSPECTO", "CONTATO", "PROPOSTA", "CLIENTE"] as const;
 const ESTAGIO_COR: Record<string, string> = {
   PROSPECTO: "bg-slate-100 text-slate-600",
-  CONTATO:   "bg-blue-100 text-blue-700",
+  CONTATO:   "bg-[#f5e8e7] text-svn-ruby",
   PROPOSTA:  "bg-amber-100 text-amber-700",
   CLIENTE:   "bg-emerald-100 text-emerald-700",
 };
@@ -116,7 +116,7 @@ export default function DashboardPage() {
   const leadsAtivos = leads.filter((l) => l.estagio !== "CLIENTE").length;
 
   const kpis = [
-    { label: "Clientes",      value: clientes.length, icon: Users,      color: "bg-blue-600"    },
+    { label: "Clientes",      value: clientes.length, icon: Users,      color: "bg-svn-ruby"    },
     { label: "AuM total",     value: brl(totalNet),   icon: TrendingUp, color: "bg-emerald-600" },
     { label: "Reuniões (30d)",value: reunioes.length, icon: Calendar,   color: "bg-violet-600"  },
     { label: "Tarefas abertas",value: tarefas.length, icon: CheckSquare,color: tarefas.length > 0 ? "bg-amber-500" : "bg-slate-400" },
