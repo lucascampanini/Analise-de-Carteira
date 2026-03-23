@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart, FolderInput, Search,
+  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart, FolderInput, Search, Calculator,
 } from "lucide-react";
 
 const nav = [
@@ -17,6 +17,10 @@ const nav = [
   { href: "/leads",         icon: Target,          label: "Leads"     },
   { href: "/importar",      icon: FolderInput,     label: "Importar"  },
   { href: "/buscar",        icon: Search,           label: "Buscar"    },
+];
+
+const navExterno = [
+  { href: "https://simulador-consorcio-rho.vercel.app/", icon: Calculator, label: "Consórcio" },
 ];
 
 export function Sidebar() {
@@ -34,7 +38,7 @@ export function Sidebar() {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 py-4 space-y-1 px-2">
+      <nav className="flex-1 py-4 space-y-1 px-2 overflow-y-auto">
         {nav.map(({ href, icon: Icon, label }) => {
           const active = path === href || (href !== "/" && path.startsWith(href));
           return (
@@ -52,6 +56,25 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {/* Separador */}
+        <div className="pt-2 pb-1 px-3">
+          <p className="text-xs text-slate-600 uppercase tracking-wider">Ferramentas</p>
+        </div>
+
+        {navExterno.map(({ href, icon: Icon, label }) => (
+          <a
+            key={href}
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors text-slate-400 hover:bg-slate-800 hover:text-white"
+          >
+            <Icon size={18} />
+            {label}
+            <span className="ml-auto text-slate-600 text-xs">↗</span>
+          </a>
+        ))}
       </nav>
 
       {/* Footer */}
