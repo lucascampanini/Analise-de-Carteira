@@ -11,12 +11,12 @@ const nav = [
   { href: "/clientes",      icon: Users,           label: "Clientes"  },
   { href: "/fundos",        icon: BarChart2,        label: "Carteira"  },
   { href: "/fundos-lista",  icon: PieChart,         label: "Fundos"    },
-  { href: "/buscar",        icon: Search,           label: "Buscar"    },
   { href: "/alertas",       icon: Bell,            label: "Alertas"   },
   { href: "/agenda",        icon: Calendar,        label: "Agenda"    },
   { href: "/ofertas",       icon: Briefcase,       label: "Ofertas"   },
   { href: "/leads",         icon: Target,          label: "Leads"     },
   { href: "/importar",      icon: FolderInput,     label: "Importar"  },
+  { href: "/buscar",        icon: Search,           label: "Buscar"    },
 ];
 
 export function Sidebar() {
