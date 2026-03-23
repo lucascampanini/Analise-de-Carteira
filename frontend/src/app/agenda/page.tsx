@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import {
   getReunioes, getEventosProximos, getClientes, getLeads,
   addReuniao, cancelarReuniao,
@@ -9,6 +10,7 @@ import { fmtDate, diasAte } from "@/lib/formatters";
 
 export default function AgendaPage() {
   const { user } = useAuth();
+  const { refreshKey } = useDataRefresh();
   const [reunioes, setReunioes] = useState<any[]>([]);
   const [eventos,  setEventos]  = useState<any[]>([]);
   const [clientes, setClientes] = useState<any[]>([]);
@@ -36,7 +38,7 @@ export default function AgendaPage() {
     load();
     getClientes(user.uid).then(setClientes).catch(() => {});
     getLeads(user.uid).then(setLeads).catch(() => {});
-  }, [user]);
+  }, [user, refreshKey]);
 
   const clienteSelecionado = clientes.find((c) => c.codigo_conta === form.codigo_conta);
   const leadSelecionado    = leads.find((l) => l.id === form.codigo_conta);

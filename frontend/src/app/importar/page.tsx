@@ -1,6 +1,7 @@
 "use client";
 import { useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { importarClientes, importarPosicoesMulti, importarFundosInfo } from "@/lib/firestore";
 import * as XLSX from "xlsx";
 import { Upload, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
@@ -293,6 +294,7 @@ function Card({ title, description, children }: { title: string; description: st
 // ── Página ────────────────────────────────────────────────────────────────────
 export default function ImportarPage() {
   const { user } = useAuth();
+  const { triggerRefresh } = useDataRefresh();
 
   // Clientes
   const [fileRel,  setFileRel]  = useState<File | null>(null);
@@ -326,6 +328,7 @@ export default function ImportarPage() {
       const n = await importarClientes(user.uid, clts);
       setMsgClts(`${n} clientes importados${semMatch > 0 ? ` (${semMatch} sem match no Positivador)` : ""}!`);
       setStClts("ok");
+      triggerRefresh();
     } catch (err: any) {
       setMsgClts(err.message); setStClts("error");
     }
@@ -340,6 +343,7 @@ export default function ImportarPage() {
       const n = await importarPosicoesMulti(user.uid, posicoes);
       setMsgDiv(`${n} posições importadas (${nContas} clientes)!`);
       setStDiv("ok");
+      triggerRefresh();
     } catch (err: any) {
       setMsgDiv(err.message); setStDiv("error");
     }
@@ -353,6 +357,7 @@ export default function ImportarPage() {
       const n = await importarFundosInfo(user.uid, fundos);
       setMsgFund(`${n} fundos importados!`);
       setStFund("ok");
+      triggerRefresh();
     } catch (err: any) {
       setMsgFund(err.message); setStFund("error");
     }

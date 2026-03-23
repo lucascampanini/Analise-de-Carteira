@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, Suspense } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { getClientes, importarClientes } from "@/lib/firestore";
 import { brl } from "@/lib/formatters";
 import Link from "next/link";
@@ -438,6 +439,7 @@ function ClientesLista({
 // ── Page principal (decide lista vs perfil) ──────────────────────────────────
 function ClientesPageInner() {
   const { user }  = useAuth();
+  const { refreshKey } = useDataRefresh();
   const router    = useRouter();
   const params    = useSearchParams();
   const conta     = params.get("conta");
@@ -448,7 +450,7 @@ function ClientesPageInner() {
     getClientes(user.uid).then(setClientes).catch(() => {});
   };
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); }, [user, refreshKey]);
 
   const ir = (c: string) => router.push(`/clientes?conta=${c}`);
   const voltar = () => router.push("/clientes");

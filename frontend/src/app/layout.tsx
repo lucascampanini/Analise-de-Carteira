@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "./globals.css";
 import { Sidebar } from "@/components/layout/sidebar";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { DataRefreshProvider } from "@/contexts/DataRefreshContext";
 import { AuthGuard } from "@/components/AuthGuard";
 
 const inter = Inter({ subsets: ["latin"] });
@@ -17,9 +18,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="pt-BR">
       <body className={`${inter.className} bg-slate-50`}>
         <AuthProvider>
-          <AuthGuard>
-            {children}
-          </AuthGuard>
+          <DataRefreshProvider>
+            <AuthGuard>
+              {children}
+            </AuthGuard>
+          </DataRefreshProvider>
         </AuthProvider>
       </body>
     </html>

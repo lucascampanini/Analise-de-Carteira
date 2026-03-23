@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { useSearchParams } from "next/navigation";
 import { getClientes, getPosicoes, importarPosicoes, importarPosicoesMulti, deletarPosicoesCliente, getFundosInfo } from "@/lib/firestore";
 import { brl } from "@/lib/formatters";
@@ -226,6 +227,7 @@ function enriquecerLiquidez(posicoes: any[], fundoMap: Record<string, any>): any
 
 function CarteiraDiversificacaoPageInner() {
   const { user } = useAuth();
+  const { refreshKey } = useDataRefresh();
   const searchParams = useSearchParams();
   const contaParam   = searchParams.get("conta");
   const [clientes,   setClientes]   = useState<any[]>([]);
@@ -253,7 +255,7 @@ function CarteiraDiversificacaoPageInner() {
       if (contaParam) setConta(contaParam);
       else if (cls.length > 0 && !conta) setConta(cls[0].codigo_conta);
     });
-  }, [user]);
+  }, [user, refreshKey]);
 
   const importarExcel = async (file: File) => {
     if (!user) return;

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { getLeads, addLead, patchLeadEstagio, deleteLead, importarLeads } from "@/lib/firestore";
 import { brl, fmtDate } from "@/lib/formatters";
 import * as XLSX from "xlsx";
@@ -24,6 +25,7 @@ const ESTAGIO_HEADER: Record<string, string> = {
 
 export default function LeadsPage() {
   const { user } = useAuth();
+  const { refreshKey } = useDataRefresh();
   const [leads,     setLeads]     = useState<any[]>([]);
   const [showForm,  setShowForm]  = useState(false);
   const [form, setForm] = useState({ nome: "", telefone: "", email: "", origem: "", valor_potencial: "" });
@@ -37,7 +39,7 @@ export default function LeadsPage() {
     getLeads(user.uid).then(setLeads).catch(() => {});
   };
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); }, [user, refreshKey]);
 
   const mover = async (id: string, estagio: string) => {
     if (!user) return;

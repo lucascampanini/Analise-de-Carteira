@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import {
   getOfertas, addOferta, deleteOferta,
   getAllClientesOfertas, addClienteOferta, patchClienteOferta, deleteClienteOferta,
@@ -71,6 +72,7 @@ type CelulaAberta = { conta: string; ofertaId: string } | null;
 
 export default function OfertasPage() {
   const { user } = useAuth();
+  const { refreshKey } = useDataRefresh();
   const [ofertas,   setOfertas]   = useState<any[]>([]);
   const [ocItems,   setOcItems]   = useState<any[]>([]);
   const [clientes,  setClientes]  = useState<any[]>([]);
@@ -108,7 +110,7 @@ export default function OfertasPage() {
     setClientes(cls);
     setFundoMap(map);
     setPosicoes(enriquecerLiquidez(pos, map));
-  }, [user]);
+  }, [user, refreshKey]);
 
   useEffect(() => { load(); }, [load]);
 

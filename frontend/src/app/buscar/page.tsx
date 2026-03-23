@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { getPosicoes, getClientes } from "@/lib/firestore";
 import { brl } from "@/lib/formatters";
 import { Search } from "lucide-react";
@@ -10,6 +11,7 @@ const norm = (s: string) =>
 
 export default function BuscarPage() {
   const { user } = useAuth();
+  const { refreshKey } = useDataRefresh();
   const [posicoes,  setPosicoes]  = useState<any[]>([]);
   const [clientes,  setClientes]  = useState<any[]>([]);
   const [busca,     setBusca]     = useState("");
@@ -22,7 +24,7 @@ export default function BuscarPage() {
       setClientes(cls);
       setLoading(false);
     });
-  }, [user]);
+  }, [user, refreshKey]);
 
   const clienteMap = useMemo(() => {
     const m: Record<string, string> = {};

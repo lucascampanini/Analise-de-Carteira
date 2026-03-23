@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { getPosicoes, getClientes } from "@/lib/firestore";
 import { brl } from "@/lib/formatters";
 import { writeBatch, doc, collection, getDocs } from "firebase/firestore";
@@ -161,6 +162,7 @@ const LIQ_COR = (dias: number) => {
 // ── Componente ───────────────────────────────────────────────────────────────
 export default function FundosListaPage() {
   const { user } = useAuth();
+  const { refreshKey } = useDataRefresh();
   const [posicoes,   setPosicoes]   = useState<any[]>([]);
   const [fundosInfo, setFundosInfo] = useState<any[]>([]);
   const [busca,      setBusca]      = useState("");
@@ -174,7 +176,7 @@ export default function FundosListaPage() {
     const [pos, fi] = await Promise.all([getPosicoes(user.uid), getFundosInfo(user.uid)]);
     setPosicoes(pos);
     setFundosInfo(fi);
-  }, [user]);
+  }, [user, refreshKey]);
 
   useEffect(() => { load(); }, [load]);
 

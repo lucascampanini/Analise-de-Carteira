@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { getEventosProximos, concluirEvento, deleteEvento, getPosicoes, getClientes } from "@/lib/firestore";
 import { fmtDate, brl } from "@/lib/formatters";
 
@@ -34,6 +35,7 @@ function getVencimentosRF(posicoes: any[], clientes: any[], dias = 30) {
 
 export default function AlertasPage() {
   const { user } = useAuth();
+  const { refreshKey } = useDataRefresh();
   const [eventos,   setEventos]   = useState<any[]>([]);
   const [posicoes,  setPosicoes]  = useState<any[]>([]);
   const [clientes,  setClientes]  = useState<any[]>([]);
@@ -50,7 +52,7 @@ export default function AlertasPage() {
     setClientes(cls);
   };
 
-  useEffect(() => { load(); }, [user]);
+  useEffect(() => { load(); }, [user, refreshKey]);
 
   const concluir = async (id: string) => {
     if (!user) return;
