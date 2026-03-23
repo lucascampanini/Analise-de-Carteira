@@ -8,7 +8,15 @@ import { Upload, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
 // ── Helpers Excel ─────────────────────────────────────────────────────────────
 async function lerExcel(file: File): Promise<any[]> {
-  const buf = await file.arrayBuffer();
+  let buf: ArrayBuffer;
+  try {
+    buf = await file.arrayBuffer();
+  } catch {
+    throw new Error(
+      `Não foi possível ler o arquivo "${file.name}". ` +
+      `Verifique se ele está fechado no Excel e selecione-o novamente.`
+    );
+  }
   const wb  = XLSX.read(buf, { type: "array" });
   const ws  = wb.Sheets[wb.SheetNames[0]];
   return XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
