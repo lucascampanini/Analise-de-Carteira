@@ -1,6 +1,6 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { getFirestore, type Firestore } from "firebase/firestore";
+import { initializeFirestore, getFirestore, persistentLocalCache, type Firestore } from "firebase/firestore";
 
 // Firebase is only available in the browser — guard against SSR pre-rendering
 function getApp(): FirebaseApp {
@@ -15,14 +15,29 @@ function getApp(): FirebaseApp {
   });
 }
 
+// Inicializa o Firestore com cache persistente (IndexedDB).
+// Após o primeiro carregamento, os dados vêm do cache local em ms,
+// com sincronização automática em background quando online.
+function getDb(): Firestore {
+  const app = getApp();
+  try {
+    return initializeFirestore(app, {
+      localCache: persistentLocalCache(),
+    });
+  } catch {
+    // Já inicializado (hot reload / StrictMode) — retorna a instância existente
+    return getFirestore(app);
+  }
+}
+
 export function getFirebaseAuth(): Auth {
   return getAuth(getApp());
 }
 
 export function getFirebaseDb(): Firestore {
-  return getFirestore(getApp());
+  return getDb();
 }
 
 // Lazy singletons — safe to import at module level; only initialized when called
 export const auth = typeof window !== "undefined" ? getAuth(getApp()) : null as unknown as Auth;
-export const db   = typeof window !== "undefined" ? getFirestore(getApp()) : null as unknown as Firestore;
+export const db   = typeof window !== "undefined" ? getDb()           : null as unknown as Firestore;
