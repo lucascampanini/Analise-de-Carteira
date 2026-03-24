@@ -151,11 +151,11 @@ async function parsearDiversificador(file: File) {
   const rows = await lerExcel(file);
   if (rows.length === 0) throw new Error("Planilha vazia.");
   const headers = Object.keys(rows[0]);
-  const colConta = mapCol(headers, "codcliente", "codigodaconta", "codigoconta", "conta", "codigo");
-  const colAtivo = mapColExact(headers, "dscativo", "nomativo", "nomefundo", "fundo", "papel", "titulo");
-  const colProd  = mapCol(headers, "dscproduto", "produto", "classe", "tipo", "categoria", "tipodeativos");
-  const colGest  = mapCol(headers, "gestora", "gestor", "administrador", "dscgestor");
-  const colValor = mapCol(headers, "valnet", "valornet", "valorliquido", "valorbrutodeativos", "valorbruto", "saldo", "valor", "pl");
+  const colConta = mapCol(headers, "codcliente", "codigodaconta", "codigoconta", "conta", "codigo", "cliente");
+  const colAtivo = mapColExact(headers, "dscativo", "nomativo", "nomefundo", "fundo", "papel", "titulo", "ativo");
+  const colProd  = mapCol(headers, "dscproduto", "produto", "subproduto", "classe", "tipo", "categoria", "tipodeativos");
+  const colGest  = mapCol(headers, "gestora", "gestor", "administrador", "dscgestor", "emissor");
+  const colValor = mapCol(headers, "valnet", "valornet", "valorliquido", "valorbrutodeativos", "valorbruto", "saldo", "valor", "pl", "net");
   const colLiq   = mapCol(headers, "prazoderesgate", "liquidez", "prazo", "resgate");
   const colRent  = mapCol(headers, "rentabilidade12m", "rent12m", "rentabilidade");
   const colCNPJ  = mapCol(headers, "dsccnpjfundo", "cnpjfundo", "cnpjativo", "cnpj");
