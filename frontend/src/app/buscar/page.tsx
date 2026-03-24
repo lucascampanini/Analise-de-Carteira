@@ -118,7 +118,12 @@ export default function BuscarPage() {
               <div className="flex items-center gap-3 min-w-0">
                 <div className="min-w-0">
                   <h2 className="font-semibold text-slate-800 truncate">{grupo.ativo}</h2>
-                  <p className="text-xs text-slate-400">{grupo.classe}</p>
+                  <p className="text-xs text-slate-400">
+                    {grupo.classe}
+                    {grupo.classe === "Renda Fixa" && grupo.posicoes[0]?.gestora && (
+                      <span className="ml-2 text-slate-500 font-medium">· {grupo.posicoes[0].gestora}</span>
+                    )}
+                  </p>
                 </div>
               </div>
               <div className="flex items-center gap-6 shrink-0 text-right">

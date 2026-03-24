@@ -470,7 +470,7 @@ function CarteiraDiversificacaoPageInner() {
                   <tr>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Ativo / Produto</th>
                     <th className="text-left px-4 py-3 font-semibold text-slate-600">Classe</th>
-                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Gestora</th>
+                    <th className="text-left px-4 py-3 font-semibold text-slate-600">Gestora / Emissor</th>
                     <th className="text-center px-4 py-3 font-semibold text-slate-600">Liquidez</th>
                     <th className="text-right px-4 py-3 font-semibold text-slate-600">Rent. 12m</th>
                     <th className="text-right px-4 py-3 font-semibold text-slate-600">Valor</th>
@@ -489,6 +489,13 @@ function CarteiraDiversificacaoPageInner() {
                         <td className="px-4 py-3 max-w-xs">
                           <p className="font-medium text-slate-800 break-words">{p.ativo}</p>
                           {p.tipo && <p className="text-xs text-slate-400">{p.tipo}</p>}
+                          {p.classe === "Renda Fixa" && (p.gestora || p.data_vencimento) && (
+                            <p className="text-xs text-slate-400 mt-0.5">
+                              {p.gestora && <span className="font-medium text-slate-500">{p.gestora}</span>}
+                              {p.gestora && p.data_vencimento && <span> · </span>}
+                              {p.data_vencimento && <span>Venc: {new Date(p.data_vencimento + "T00:00:00").toLocaleDateString("pt-BR")}</span>}
+                            </p>
+                          )}
                         </td>
                         <td className="px-4 py-3">
                           <span className="text-xs px-2 py-0.5 rounded-full font-medium"
