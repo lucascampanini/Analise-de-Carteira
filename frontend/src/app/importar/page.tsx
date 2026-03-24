@@ -106,7 +106,7 @@ async function parsearClientes(fileRelatorio: File, filePositivador: File) {
     clts.push({ codigo_conta: conta, nome, net: pos.net ?? 0, suitability: pos.suitability ?? "", profissao: pos.profissao ?? "", data_nascimento: pos.data_nascimento ?? "", segmento: pos.segmento ?? "" });
   }
   if (clts.length === 0) throw new Error("Nenhum cliente encontrado. Verifique se os arquivos são os corretos.");
-  return clts;
+  return { clts, debug: { colContaP, colNet, colSuit, colProf, colNasc, colSeg, todasColunas: hdPos } };
 }
 
 // ── Parsers: Diversificador ───────────────────────────────────────────────────
@@ -343,10 +343,14 @@ export default function ImportarPage() {
     if (!user || !fileRel || !filePos) return;
     setStClts("loading"); setMsgClts("");
     try {
-      const clts = await parsearClientes(fileRel, filePos);
+      const { clts, debug } = await parsearClientes(fileRel, filePos);
       const semMatch = clts.filter((c: any) => !c.net && !c.suitability).length;
       const n = await importarClientes(user.uid, clts);
-      setMsgClts(`${n} clientes importados${semMatch > 0 ? ` (${semMatch} sem match no Positivador)` : ""}!`);
+      setMsgClts(
+        `${n} clientes importados${semMatch > 0 ? ` (${semMatch} sem match)` : ""}! ` +
+        `[NET="${debug.colNet}" | Perfil="${debug.colSuit}" | Conta="${debug.colContaP}" | ` +
+        `Todas as colunas: ${debug.todasColunas.join(", ")}]`
+      );
       setStClts("ok");
       triggerRefresh();
     } catch (err: any) {
