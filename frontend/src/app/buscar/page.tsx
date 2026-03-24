@@ -40,7 +40,8 @@ export default function BuscarPage() {
     const filtradas = posicoes.filter((p) =>
       norm(p.ativo || "").includes(q) ||
       norm(p.produto || "").includes(q) ||
-      norm(p.cnpj_fundo || "").includes(q)
+      norm(p.cnpj_fundo || "").includes(q) ||
+      norm(p.gestora || "").includes(q)
     );
 
     const map: Record<string, { ativo: string; classe: string; posicoes: any[] }> = {};
