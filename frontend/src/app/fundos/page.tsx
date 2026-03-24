@@ -27,11 +27,15 @@ const LIQUIDEZ_BUCKETS = [
 
 function normalizeClasse(raw: string): string {
   const s = (raw || "").toLowerCase();
-  if (s.includes("prev"))                                                              return "Previdência";
-  if (s.includes("imobili") || s.includes("fii"))                                     return "FII";
-  if (s.includes("fix") || s.includes(" rf"))                                         return "Renda Fixa";
+  if (s.includes("prev")) return "Previdência";
+  if (s.includes("imobili") || s.includes("fii")) return "FII";
+  if (s.includes("fix") || s.includes(" rf") || s.startsWith("rf")
+    || s.includes("cdb") || s.includes("lci") || s.includes("lca")
+    || s.includes("cri") || s.includes("cra") || s.includes("debentur")
+    || s.includes("debêntur") || s.includes("tesouro") || s.includes("credito privado")
+    || s.includes("crédito privado") || s.includes("letras") || s.includes("fidc")) return "Renda Fixa";
   if (s.includes("vari") || s.includes(" rv") || s.includes("bdr") || s.includes("etf")) return "Renda Variável";
-  if (s.includes("fund") || s.includes("fim") || s.includes("fic"))                  return "Fundos";
+  if (s.includes("fund") || s.includes("fim") || s.includes("fic")) return "Fundos";
   return "Outros";
 }
 
@@ -75,7 +79,12 @@ function normalizarClasseXP(produto: string, dscAtivo: string): string {
   const a = (dscAtivo || "").toLowerCase();
   if (p.includes("previd")) return "Previdência";
   if (p.includes("imobili") || p.includes("fii") || a.includes("fii")) return "FII";
-  if (p.includes("renda fixa") || p.includes("tesouro")) return "Renda Fixa";
+  if (p.includes("renda fixa") || p.includes("tesouro") || p.includes("credito privado")
+    || p.includes("crédito privado") || p.includes("cdb") || p.includes("lci")
+    || p.includes("lca") || p.includes("cri") || p.includes("cra")
+    || p.includes("debentur") || p.includes("debêntur") || p.includes("letras")
+    || a.includes("cdb") || a.includes("lci") || a.includes("lca")
+    || a.includes("cri") || a.includes("cra") || a.includes("tesouro")) return "Renda Fixa";
   if (p.includes("ação") || p.includes("acao") || p.includes("bdr") || p.includes("etf")) return "Renda Variável";
   if (p.includes("fundo") || p.includes("fim") || p.includes("fic") || p.includes("multimercado")) return "Fundos";
   return normalizeClasse(produto || dscAtivo);

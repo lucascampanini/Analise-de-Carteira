@@ -6,17 +6,28 @@ import { getEventosProximos, concluirEvento, deleteEvento, getPosicoes, getClien
 import { fmtDate, brl } from "@/lib/formatters";
 
 function getVencimentosRF(posicoes: any[], clientes: any[], dias = 30) {
-  const hoje  = new Date();
+  const hoje   = new Date();
   const limite = new Date();
   limite.setDate(limite.getDate() + dias);
 
   const clienteMap: Record<string, string> = {};
   clientes.forEach((c) => { clienteMap[c.codigo_conta] = c.nome; });
 
+  // Inclui qualquer posição com data_vencimento no período — não só RF classificada
+  // Isso garante que RF mal-classificada (Outros) também apareça
+  const ehRF = (p: any) => {
+    if (p.classe === "Renda Fixa") return true;
+    if (p.classe === "Outros" && p.data_vencimento) return true;
+    const a = (p.ativo || "").toLowerCase();
+    return a.includes("cdb") || a.includes("lci") || a.includes("lca")
+      || a.includes("cri") || a.includes("cra") || a.includes("tesouro")
+      || a.includes("debentur") || a.includes("letras");
+  };
+
   return posicoes
     .filter((p) => {
-      if (p.classe !== "Renda Fixa") return false;
       if (!p.data_vencimento) return false;
+      if (!ehRF(p)) return false;
       const venc = new Date(p.data_vencimento + "T00:00:00");
       return venc >= hoje && venc <= limite;
     })
@@ -104,7 +115,10 @@ export default function AlertasPage() {
                 <div key={i} className={`px-5 py-3 flex items-center justify-between gap-4 ${corBg}`}>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium text-slate-800 truncate">{p.ativo}</p>
-                    <p className="text-xs text-slate-400">{p.nome_cliente} · {p.codigo_conta}</p>
+                    <p className="text-xs text-slate-400">
+                      {p.nome_cliente} · {p.codigo_conta}
+                      {p.gestora && <span className="ml-1 text-slate-500">· {p.gestora}</span>}
+                    </p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-xs text-slate-500">{fmtDate(p.data_vencimento)}</p>
