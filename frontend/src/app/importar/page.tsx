@@ -186,7 +186,13 @@ async function parsearDiversificador(file: File) {
   }).filter(Boolean) as any[];
 
   const comConta = parsed.filter((p) => p.codigo_conta);
-  if (comConta.length === 0) throw new Error("Nenhuma posição com código de cliente encontrada. Verifique se o arquivo é o Diversificador XP.");
+  if (comConta.length === 0) {
+    throw new Error(
+      `Nenhuma posição com código de cliente encontrada.\n` +
+      `Colunas detectadas no arquivo: ${headers.slice(0, 15).join(", ")}${headers.length > 15 ? "…" : ""}\n` +
+      `(Esperado coluna contendo: COD_CLIENTE, CODIGO_CONTA ou similar)`
+    );
+  }
   return comConta;
 }
 
