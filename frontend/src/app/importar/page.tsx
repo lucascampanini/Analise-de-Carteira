@@ -72,7 +72,7 @@ async function parsearClientes(fileRelatorio: File, filePositivador: File) {
   if (rowsPos.length === 0) throw new Error("Positivador: planilha vazia.");
   const hdPos    = Object.keys(rowsPos[0]);
   const colContaP = mapCol(hdPos, "codcliente", "codigocliente", "conta", "account", "cliente");
-  const colNet    = mapCol(hdPos, "netemm", "netem", "net", "patrimonio", "saldo", "aplicacaofinanceira", "aplicacao");
+  const colNet    = mapCol(hdPos, "netemm", "netem", "net", "patrimonio", "saldo") || mapColExact(hdPos, "af");
   const colSuit   = mapCol(hdPos, "suitability", "dscsuitability", "perfil");
   const colProf   = mapCol(hdPos, "profissao", "dscprofissao", "profissao", "ocupacao");
   const colNasc   = mapCol(hdPos, "datanascimento", "datdatanascimento", "nascimento");
