@@ -71,10 +71,10 @@ async function parsearClientes(fileRelatorio: File, filePositivador: File) {
   const rowsPos = await lerExcel(filePositivador);
   if (rowsPos.length === 0) throw new Error("Positivador: planilha vazia.");
   const hdPos    = Object.keys(rowsPos[0]);
-  const colContaP = mapCol(hdPos, "codcliente", "codigocliente", "conta", "account");
-  const colNet    = mapCol(hdPos, "netemm", "netem", "net", "patrimonio", "saldo");
+  const colContaP = mapCol(hdPos, "codcliente", "codigocliente", "conta", "account", "cliente");
+  const colNet    = mapCol(hdPos, "netemm", "netem", "net", "patrimonio", "saldo", "aplicacaofinanceira", "aplicacao");
   const colSuit   = mapCol(hdPos, "suitability", "dscsuitability", "perfil");
-  const colProf   = mapCol(hdPos, "profissao", "dscprofissao", "profissão", "ocupacao");
+  const colProf   = mapCol(hdPos, "profissao", "dscprofissao", "profissao", "ocupacao");
   const colNasc   = mapCol(hdPos, "datanascimento", "datdatanascimento", "nascimento");
   const colSeg    = mapCol(hdPos, "segmento", "dscsegmento");
   if (!colContaP) throw new Error(
