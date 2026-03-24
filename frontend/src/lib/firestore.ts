@@ -242,48 +242,79 @@ export async function importarClientesOferta(uid: string, ofertaId: string, clie
 // ──────────────────────────────────────────────
 // POSIÇÕES DE CARTEIRA (Diversificador)
 // ──────────────────────────────────────────────
-export async function getPosicoes(uid: string, conta?: string) {
-  const snap = await getDocs(col(uid, "posicoes"));
-  let list = snap2arr(snap);
-  if (conta) list = list.filter((p: any) => p.codigo_conta === conta);
 
-  // Deduplicar: se existirem docs antigos (ID aleatório) e novos (ID estável)
-  // para o mesmo ativo, manter apenas o mais recente por conta+ativo
-  const seen = new Map<string, any>();
-  list.forEach((p: any) => {
-    const key = `${p.codigo_conta}_${p.cnpj_fundo || p.ativo || ""}`;
-    const existing = seen.get(key);
-    if (!existing || (p.importado_em || "") >= (existing.importado_em || "")) {
-      seen.set(key, p);
+// Expande documentos de ambos os formatos:
+//   Novo:  { codigo_conta, posicoes: [...], importado_em }  — 1 doc por cliente
+//   Antigo: { codigo_conta, ativo, valor, ... }             — 1 doc por posição
+function expandirPosicoes(docs: any[]): any[] {
+  const all: any[] = [];
+  docs.forEach((d) => {
+    if (Array.isArray(d.posicoes)) {
+      d.posicoes.forEach((p: any) =>
+        all.push({ ...p, codigo_conta: p.codigo_conta || d.codigo_conta, importado_em: p.importado_em || d.importado_em })
+      );
+    } else {
+      all.push(d);
     }
   });
-  list = Array.from(seen.values());
+  // Deduplicar por conta+ativo (compat com docs antigos ainda no Firestore)
+  const seen = new Map<string, any>();
+  all.forEach((p) => {
+    const key = `${p.codigo_conta}_${p.cnpj_fundo || p.ativo || ""}`;
+    const ex = seen.get(key);
+    if (!ex || (p.importado_em || "") >= (ex.importado_em || "")) seen.set(key, p);
+  });
+  return Array.from(seen.values());
+}
 
-  return list.sort((a: any, b: any) => (b.valor || 0) - (a.valor || 0));
+export async function getPosicoes(uid: string, conta?: string) {
+  // Quando filtra por conta: busca direto o documento do cliente (1 leitura)
+  if (conta) {
+    const docSnap = await getDoc(doc(col(uid, "posicoes"), conta));
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (Array.isArray(data.posicoes)) {
+        return [...data.posicoes].sort((a: any, b: any) => (b.valor || 0) - (a.valor || 0));
+      }
+    }
+    // Fallback: formato antigo — lê toda a coleção e filtra
+    const snap = await getDocs(col(uid, "posicoes"));
+    const list = expandirPosicoes(snap2arr(snap)).filter((p) => p.codigo_conta === conta);
+    return list.sort((a: any, b: any) => (b.valor || 0) - (a.valor || 0));
+  }
+
+  // Sem filtro: lê toda a coleção, expande e deduplica
+  const snap = await getDocs(col(uid, "posicoes"));
+  return expandirPosicoes(snap2arr(snap)).sort((a: any, b: any) => (b.valor || 0) - (a.valor || 0));
 }
 
 export async function importarPosicoes(uid: string, conta: string, posicoes: any[]) {
-  // Upsert por ID estável (conta + cnpj/ativo) — evita apagar+reinserir (reduz writes ~3x)
-  for (let i = 0; i < posicoes.length; i += 400) {
-    const b = writeBatch(db);
-    posicoes.slice(i, i + 400).forEach((p) => {
-      const chave = `${conta}_${(p.cnpj_fundo || p.ativo || "").replace(/[^a-z0-9]/gi, "").slice(0, 40)}`;
-      const ref = doc(col(uid, "posicoes"), chave);
-      b.set(ref, { ...p, codigo_conta: conta, importado_em: new Date().toISOString() });
-    });
-    await b.commit();
-  }
+  // Novo formato: 1 documento por cliente com array de posições
+  const ref = doc(col(uid, "posicoes"), conta);
+  await setDoc(ref, {
+    codigo_conta: conta,
+    posicoes: posicoes.map((p) => ({ ...p, codigo_conta: conta })),
+    importado_em: new Date().toISOString(),
+  });
   return posicoes.length;
 }
 
 export async function importarPosicoesMulti(uid: string, posicoes: any[]) {
-  // Puro upsert por ID estável — zero leituras/deletes extras, sem risco de quota
-  for (let i = 0; i < posicoes.length; i += 400) {
+  // Agrupa por codigo_conta — 1 documento por cliente (~10x menos writes)
+  const porConta = new Map<string, any[]>();
+  posicoes.forEach((p) => {
+    const conta = p.codigo_conta || "";
+    if (!porConta.has(conta)) porConta.set(conta, []);
+    porConta.get(conta)!.push(p);
+  });
+
+  const entries = Array.from(porConta.entries());
+  const importado_em = new Date().toISOString();
+  for (let i = 0; i < entries.length; i += 400) {
     const b = writeBatch(db);
-    posicoes.slice(i, i + 400).forEach((p) => {
-      const chave = `${p.codigo_conta}_${(p.cnpj_fundo || p.ativo || "").replace(/[^a-z0-9]/gi, "").slice(0, 40)}`;
-      const ref = doc(col(uid, "posicoes"), chave);
-      b.set(ref, { ...p, importado_em: new Date().toISOString() });
+    entries.slice(i, i + 400).forEach(([conta, pos]) => {
+      const ref = doc(col(uid, "posicoes"), conta);
+      b.set(ref, { codigo_conta: conta, posicoes: pos, importado_em });
     });
     await b.commit();
   }
