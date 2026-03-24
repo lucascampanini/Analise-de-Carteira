@@ -77,8 +77,14 @@ async function parsearClientes(fileRelatorio: File, filePositivador: File) {
   const colProf   = mapCol(hdPos, "profissao", "dscprofissao", "profissão", "ocupacao");
   const colNasc   = mapCol(hdPos, "datanascimento", "datdatanascimento", "nascimento");
   const colSeg    = mapCol(hdPos, "segmento", "dscsegmento");
-  if (!colContaP) throw new Error("Positivador: coluna de código não encontrada.");
-  if (!colNet)    throw new Error("Positivador: coluna de NET não encontrada.");
+  if (!colContaP) throw new Error(
+    `Positivador: coluna de código não encontrada.\n` +
+    `Colunas detectadas: ${hdPos.slice(0, 15).join(", ")}${hdPos.length > 15 ? "…" : ""}`
+  );
+  if (!colNet) throw new Error(
+    `Positivador: coluna de NET não encontrada.\n` +
+    `Colunas detectadas: ${hdPos.slice(0, 15).join(", ")}${hdPos.length > 15 ? "…" : ""}`
+  );
 
   const dadosPorConta = new Map<string, any>();
   for (const r of rowsPos) {
