@@ -104,15 +104,15 @@ async function parsearClientes(fileRelatorio: File, filePositivador: File) {
   for (const [conta, nome] of nomesPorConta) {
     if (!nome) continue;
     const pos = dadosPorConta.get(conta);
-    if (!pos) semMatchPositivador++;
+    if (!pos) { semMatchPositivador++; continue; }
     clts.push({
       codigo_conta:    conta,
       nome,
-      net:             pos?.net             ?? 0,
-      suitability:     pos?.suitability     ?? "",
-      profissao:       pos?.profissao       ?? "",
-      data_nascimento: pos?.data_nascimento ?? "",
-      segmento:        pos?.segmento        ?? "",
+      net:             pos.net,
+      suitability:     pos.suitability,
+      profissao:       pos.profissao,
+      data_nascimento: pos.data_nascimento,
+      segmento:        pos.segmento,
     });
   }
   if (clts.length === 0) throw new Error("Nenhum cliente encontrado. Verifique se os arquivos são os corretos.");
