@@ -100,13 +100,23 @@ async function parsearClientes(fileRelatorio: File, filePositivador: File) {
   }
 
   const clts: any[] = [];
+  let semMatchPositivador = 0;
   for (const [conta, nome] of nomesPorConta) {
     if (!nome) continue;
-    const pos = dadosPorConta.get(conta) ?? {};
-    clts.push({ codigo_conta: conta, nome, net: pos.net ?? 0, suitability: pos.suitability ?? "", profissao: pos.profissao ?? "", data_nascimento: pos.data_nascimento ?? "", segmento: pos.segmento ?? "" });
+    const pos = dadosPorConta.get(conta);
+    if (!pos) semMatchPositivador++;
+    clts.push({
+      codigo_conta:    conta,
+      nome,
+      net:             pos?.net             ?? 0,
+      suitability:     pos?.suitability     ?? "",
+      profissao:       pos?.profissao       ?? "",
+      data_nascimento: pos?.data_nascimento ?? "",
+      segmento:        pos?.segmento        ?? "",
+    });
   }
   if (clts.length === 0) throw new Error("Nenhum cliente encontrado. Verifique se os arquivos são os corretos.");
-  return { clts, debug: { colContaP, colNet, colSuit, colProf, colNasc, colSeg, todasColunas: hdPos } };
+  return { clts, semMatchPositivador, debug: { colContaP, colNet, colSuit, colProf, colNasc, colSeg } };
 }
 
 // ── Parsers: Diversificador ───────────────────────────────────────────────────
@@ -352,14 +362,13 @@ export default function ImportarPage() {
     if (!user || !fileRel || !filePos) return;
     setStClts("loading"); setMsgClts("");
     try {
-      const { clts, debug } = await parsearClientes(fileRel, filePos);
-      const semMatch = clts.filter((c: any) => !c.net && !c.suitability).length;
+      const { clts, semMatchPositivador, debug } = await parsearClientes(fileRel, filePos);
       const n = await importarClientes(user.uid, clts);
-      setMsgClts(
-        `${n} clientes importados${semMatch > 0 ? ` (${semMatch} sem match)` : ""}! ` +
-        `[NET="${debug.colNet}" | Perfil="${debug.colSuit}" | Conta="${debug.colContaP}" | ` +
-        `Todas as colunas: ${debug.todasColunas.join(", ")}]`
-      );
+      const semMatchMsg = semMatchPositivador > 0
+        ? ` · ${semMatchPositivador} sem correspondência no Positivador`
+        : "";
+      const perfilMsg = debug.colSuit ? ` · Perfil: "${debug.colSuit}"` : " · Perfil: não encontrado no arquivo";
+      setMsgClts(`${n} clientes importados${semMatchMsg}! NET: "${debug.colNet}"${perfilMsg}`);
       setStClts("ok");
       triggerRefresh();
     } catch (err: any) {
