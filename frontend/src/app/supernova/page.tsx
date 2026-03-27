@@ -173,14 +173,25 @@ export default function SupernovaPage() {
 
   // ── Calendário ─────────────────────────────────────────────────────────────
   const diasNoMes = new Date(mesAtual.ano, mesAtual.mes + 1, 0).getDate();
-  const firstDow  = new Date(mesAtual.ano, mesAtual.mes, 1).getDay();
-  const startOffset = (firstDow + 6) % 7; // Mon-first
+
+  // Apenas dias úteis (Seg–Sex)
+  const diasUteis: number[] = [];
+  for (let d = 1; d <= diasNoMes; d++) {
+    const dow = new Date(mesAtual.ano, mesAtual.mes, d).getDay();
+    if (dow >= 1 && dow <= 5) diasUteis.push(d);
+  }
+
+  // Offset para alinhar o primeiro dia útil na coluna correta (0=Seg)
+  const firstUtilDow = diasUteis.length > 0
+    ? new Date(mesAtual.ano, mesAtual.mes, diasUteis[0]).getDay() - 1
+    : 0;
 
   const calendarioData = new Map<number, typeof enriched>();
-  for (let d = 1; d <= diasNoMes; d++) calendarioData.set(d, []);
+  diasUteis.forEach(d => calendarioData.set(d, []));
   enriched.forEach(c => {
-    const dia = atribuirDia(c.codigo_conta, diasNoMes);
-    calendarioData.get(dia)?.push(c);
+    const idx = atribuirDia(c.codigo_conta, diasUteis.length); // 1-based
+    const dia  = diasUteis[idx - 1];
+    if (dia !== undefined) calendarioData.get(dia)?.push(c);
   });
 
   const navegarMes = (delta: number) => {
@@ -529,7 +540,7 @@ export default function SupernovaPage() {
             </button>
             <div className="text-center">
               <p className="font-semibold text-slate-800">{MESES_PT[mesAtual.mes]} {mesAtual.ano}</p>
-              <p className="text-xs text-slate-400">{enriched.length} clientes · ~{Math.round(enriched.length / diasNoMes * 5) / 5 * 5 || 0} contatos/semana</p>
+              <p className="text-xs text-slate-400">{enriched.length} clientes · {diasUteis.length} dias úteis · ~{diasUteis.length > 0 ? Math.round(enriched.length / diasUteis.length) : 0}/dia</p>
             </div>
             <button onClick={() => navegarMes(1)}
               className="text-sm text-slate-600 hover:text-svn-ruby transition-colors font-medium px-2 py-1">
@@ -550,47 +561,44 @@ export default function SupernovaPage() {
             })}
           </div>
 
-          {/* Grade do calendário */}
+          {/* Grade do calendário — apenas dias úteis */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            {/* Cabeçalho dias da semana */}
-            <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
-              {["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"].map(d => (
+            {/* Cabeçalho Seg–Sex */}
+            <div className="grid grid-cols-5 border-b border-slate-100 bg-slate-50">
+              {["Seg","Ter","Qua","Qui","Sex"].map(d => (
                 <div key={d} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">{d}</div>
               ))}
             </div>
 
             {/* Células */}
-            <div className="grid grid-cols-7 divide-x divide-y divide-slate-100">
-              {/* Células vazias de alinhamento */}
-              {Array.from({ length: startOffset }, (_, i) => (
+            <div className="grid grid-cols-5 divide-x divide-y divide-slate-100">
+              {/* Células de alinhamento antes do primeiro dia útil */}
+              {Array.from({ length: firstUtilDow }, (_, i) => (
                 <div key={`e-${i}`} className="min-h-[88px] bg-slate-50/40" />
               ))}
 
-              {Array.from({ length: diasNoMes }, (_, i) => {
-                const dia = i + 1;
+              {diasUteis.map(dia => {
                 const clientesDia = calendarioData.get(dia) || [];
-                const isHoje     = dia === hojeData.dia && mesAtual.mes === hojeData.mes && mesAtual.ano === hojeData.ano;
-                const isSel      = diaSelecionado === dia;
-                const dow        = new Date(mesAtual.ano, mesAtual.mes, dia).getDay();
-                const isWeekend  = dow === 0 || dow === 6;
+                const isHoje = dia === hojeData.dia && mesAtual.mes === hojeData.mes && mesAtual.ano === hojeData.ano;
+                const isSel  = diaSelecionado === dia;
                 return (
                   <div key={dia}
                     onClick={() => setDiaSelecionado(isSel ? null : dia)}
                     className={`min-h-[88px] p-1.5 cursor-pointer transition-colors ${
-                      isWeekend ? "bg-slate-50/70" : ""
-                    } ${isSel ? "bg-[#f5e8e7] ring-1 ring-inset ring-svn-ruby" : "hover:bg-slate-50"}`}>
+                      isSel ? "bg-[#f5e8e7] ring-1 ring-inset ring-svn-ruby" : "hover:bg-slate-50"
+                    }`}>
 
                     {/* Número do dia */}
                     <div className={`text-xs font-bold mb-1 w-5 h-5 flex items-center justify-center rounded-full ${
-                      isHoje ? "bg-svn-ruby text-white" : isWeekend ? "text-slate-400" : "text-slate-700"
+                      isHoje ? "bg-svn-ruby text-white" : "text-slate-700"
                     }`}>{dia}</div>
 
-                    {/* Clientes (max 4) */}
+                    {/* Clientes (max 4 visíveis) */}
                     {clientesDia.slice(0, 4).map(c => {
                       const ct = CONTATO_TIER[c.tier as Tier];
                       return (
                         <div key={c.codigo_conta}
-                          className="flex items-center gap-0.5 text-xs leading-tight py-0.5 truncate">
+                          className="flex items-center gap-0.5 leading-tight py-0.5 truncate">
                           <span className="shrink-0 text-[10px]">{ct.icon}</span>
                           <span className="truncate text-slate-700 text-[11px]">
                             {(c.nome || c.codigo_conta).split(" ")[0]}
@@ -603,7 +611,7 @@ export default function SupernovaPage() {
                         +{clientesDia.length - 4} mais
                       </div>
                     )}
-                    {clientesDia.length === 0 && !isWeekend && (
+                    {clientesDia.length === 0 && (
                       <div className="text-[10px] text-slate-200 mt-1">livre</div>
                     )}
                   </div>
