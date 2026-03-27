@@ -402,7 +402,7 @@ export default function OfertasPage() {
           <p className="text-slate-400 text-sm text-center py-8">Nenhuma oferta criada ainda</p>
         ) : (
           <TopScrollWrapper>
-            <table className="text-sm whitespace-nowrap">
+            <table className="w-full text-sm whitespace-nowrap">
               <thead>
                 <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wide">
                   <th className="px-5 py-3 text-left">Produto</th>
