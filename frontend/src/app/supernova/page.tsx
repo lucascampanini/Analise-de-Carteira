@@ -36,6 +36,23 @@ const STATUS_META: Record<StatusContato, { label: string; cor: string }> = {
 
 const TIPOS_CONTATO = ["LIGACAO", "REUNIAO", "EMAIL", "WHATSAPP"];
 
+const CONTATO_TIER: Record<Tier, { label: string; icon: string }> = {
+  A1: { label: "Reunião",  icon: "🤝" },
+  A2: { label: "Ligação",  icon: "📞" },
+  B:  { label: "WhatsApp", icon: "💬" },
+  C:  { label: "E-mail",   icon: "📧" },
+};
+
+const MESES_PT = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+  "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+
+function atribuirDia(conta: string, diasNoMes: number): number {
+  let h = 0;
+  const s = String(conta);
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return (h % diasNoMes) + 1;
+}
+
 function classificarTier(net: number, cfg: typeof DEFAULT_CONFIG): Tier {
   if (net >= cfg.a1_min) return "A1";
   if (net >= cfg.a2_min) return "A2";
@@ -66,6 +83,11 @@ export default function SupernovaPage() {
   const [showConfig,   setShowConfig]   = useState(false);
   const [modalNota,    setModalNota]    = useState<{ conta: string; nome: string } | null>(null);
   const [salvandoContato, setSalvandoContato] = useState<string | null>(null);
+  const [vista,           setVista]           = useState<"lista" | "calendario">("lista");
+  const [mesAtual,        setMesAtual]        = useState(() => {
+    const n = new Date(); return { ano: n.getFullYear(), mes: n.getMonth() };
+  });
+  const [diaSelecionado,  setDiaSelecionado]  = useState<number | null>(null);
 
   const [cfgForm, setCfgForm] = useState({
     a1_min: "", a2_min: "", b_min: "",
@@ -148,6 +170,30 @@ export default function SupernovaPage() {
     if (oa !== ob) return oa - ob;
     return (b.dias ?? 9999) - (a.dias ?? 9999);
   });
+
+  // ── Calendário ─────────────────────────────────────────────────────────────
+  const diasNoMes = new Date(mesAtual.ano, mesAtual.mes + 1, 0).getDate();
+  const firstDow  = new Date(mesAtual.ano, mesAtual.mes, 1).getDay();
+  const startOffset = (firstDow + 6) % 7; // Mon-first
+
+  const calendarioData = new Map<number, typeof enriched>();
+  for (let d = 1; d <= diasNoMes; d++) calendarioData.set(d, []);
+  enriched.forEach(c => {
+    const dia = atribuirDia(c.codigo_conta, diasNoMes);
+    calendarioData.get(dia)?.push(c);
+  });
+
+  const navegarMes = (delta: number) => {
+    setMesAtual(prev => {
+      let m = prev.mes + delta, a = prev.ano;
+      if (m < 0)  { m = 11; a--; }
+      if (m > 11) { m = 0;  a++; }
+      return { ano: a, mes: m };
+    });
+    setDiaSelecionado(null);
+  };
+
+  const hojeData = (() => { const n = new Date(); return { dia: n.getDate(), mes: n.getMonth(), ano: n.getFullYear() }; })();
 
   // ── Ações ─────────────────────────────────────────────────────────────────
   const registrarContato = async (conta: string) => {
@@ -286,10 +332,22 @@ export default function SupernovaPage() {
             </span>
           </p>
         </div>
-        <button onClick={abrirConfig}
-          className="text-sm border border-slate-300 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shrink-0">
-          ⚙ Configurar tiers
-        </button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex rounded-lg border border-slate-200 overflow-hidden text-sm">
+            <button onClick={() => setVista("lista")}
+              className={`px-3 py-2 transition-colors ${vista === "lista" ? "bg-svn-ruby text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+              ≡ Lista
+            </button>
+            <button onClick={() => setVista("calendario")}
+              className={`px-3 py-2 transition-colors ${vista === "calendario" ? "bg-svn-ruby text-white" : "bg-white text-slate-600 hover:bg-slate-50"}`}>
+              📅 Calendário
+            </button>
+          </div>
+          <button onClick={abrirConfig}
+            className="text-sm border border-slate-300 text-slate-600 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors shrink-0">
+            ⚙ Configurar tiers
+          </button>
+        </div>
       </div>
 
       {/* KPI cards por tier */}
@@ -330,7 +388,8 @@ export default function SupernovaPage() {
         })}
       </div>
 
-      {/* Tabela principal */}
+      {/* ── Vista Lista ──────────────────────────────────────────────────────── */}
+      {vista === "lista" && (
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
         {/* Filtros */}
@@ -456,6 +515,169 @@ export default function SupernovaPage() {
           </div>
         )}
       </div>
+      )} {/* fim vista lista */}
+
+      {/* ── Vista Calendário ─────────────────────────────────────────────────── */}
+      {vista === "calendario" && (
+        <div className="space-y-4">
+
+          {/* Navegação de mês */}
+          <div className="flex items-center justify-between bg-white rounded-xl border border-slate-200 px-5 py-3">
+            <button onClick={() => navegarMes(-1)}
+              className="text-sm text-slate-600 hover:text-svn-ruby transition-colors font-medium px-2 py-1">
+              ← Anterior
+            </button>
+            <div className="text-center">
+              <p className="font-semibold text-slate-800">{MESES_PT[mesAtual.mes]} {mesAtual.ano}</p>
+              <p className="text-xs text-slate-400">{enriched.length} clientes · ~{Math.round(enriched.length / diasNoMes * 5) / 5 * 5 || 0} contatos/semana</p>
+            </div>
+            <button onClick={() => navegarMes(1)}
+              className="text-sm text-slate-600 hover:text-svn-ruby transition-colors font-medium px-2 py-1">
+              Próximo →
+            </button>
+          </div>
+
+          {/* Legenda de tipos */}
+          <div className="flex flex-wrap gap-3">
+            {(["A1","A2","B","C"] as Tier[]).map(t => {
+              const ct = CONTATO_TIER[t];
+              const meta = TIER_META[t];
+              return (
+                <span key={t} className={`text-xs px-2.5 py-1 rounded-full font-medium flex items-center gap-1 ${meta.badge}`}>
+                  {ct.icon} Tier {t} → {ct.label}
+                </span>
+              );
+            })}
+          </div>
+
+          {/* Grade do calendário */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            {/* Cabeçalho dias da semana */}
+            <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50">
+              {["Seg","Ter","Qua","Qui","Sex","Sáb","Dom"].map(d => (
+                <div key={d} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">{d}</div>
+              ))}
+            </div>
+
+            {/* Células */}
+            <div className="grid grid-cols-7 divide-x divide-y divide-slate-100">
+              {/* Células vazias de alinhamento */}
+              {Array.from({ length: startOffset }, (_, i) => (
+                <div key={`e-${i}`} className="min-h-[88px] bg-slate-50/40" />
+              ))}
+
+              {Array.from({ length: diasNoMes }, (_, i) => {
+                const dia = i + 1;
+                const clientesDia = calendarioData.get(dia) || [];
+                const isHoje     = dia === hojeData.dia && mesAtual.mes === hojeData.mes && mesAtual.ano === hojeData.ano;
+                const isSel      = diaSelecionado === dia;
+                const dow        = new Date(mesAtual.ano, mesAtual.mes, dia).getDay();
+                const isWeekend  = dow === 0 || dow === 6;
+                return (
+                  <div key={dia}
+                    onClick={() => setDiaSelecionado(isSel ? null : dia)}
+                    className={`min-h-[88px] p-1.5 cursor-pointer transition-colors ${
+                      isWeekend ? "bg-slate-50/70" : ""
+                    } ${isSel ? "bg-[#f5e8e7] ring-1 ring-inset ring-svn-ruby" : "hover:bg-slate-50"}`}>
+
+                    {/* Número do dia */}
+                    <div className={`text-xs font-bold mb-1 w-5 h-5 flex items-center justify-center rounded-full ${
+                      isHoje ? "bg-svn-ruby text-white" : isWeekend ? "text-slate-400" : "text-slate-700"
+                    }`}>{dia}</div>
+
+                    {/* Clientes (max 4) */}
+                    {clientesDia.slice(0, 4).map(c => {
+                      const ct = CONTATO_TIER[c.tier as Tier];
+                      return (
+                        <div key={c.codigo_conta}
+                          className="flex items-center gap-0.5 text-xs leading-tight py-0.5 truncate">
+                          <span className="shrink-0 text-[10px]">{ct.icon}</span>
+                          <span className="truncate text-slate-700 text-[11px]">
+                            {(c.nome || c.codigo_conta).split(" ")[0]}
+                          </span>
+                        </div>
+                      );
+                    })}
+                    {clientesDia.length > 4 && (
+                      <div className="text-[10px] text-slate-400 font-semibold mt-0.5">
+                        +{clientesDia.length - 4} mais
+                      </div>
+                    )}
+                    {clientesDia.length === 0 && !isWeekend && (
+                      <div className="text-[10px] text-slate-200 mt-1">livre</div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Detalhe do dia selecionado */}
+          {diaSelecionado !== null && (
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+                <div>
+                  <h3 className="font-semibold text-slate-800">
+                    {diaSelecionado} de {MESES_PT[mesAtual.mes]}
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    {(calendarioData.get(diaSelecionado) || []).length} contato{(calendarioData.get(diaSelecionado) || []).length !== 1 ? "s" : ""} agendado{(calendarioData.get(diaSelecionado) || []).length !== 1 ? "s" : ""}
+                  </p>
+                </div>
+                <button onClick={() => setDiaSelecionado(null)}
+                  className="text-slate-400 hover:text-slate-600 text-lg leading-none">✕</button>
+              </div>
+
+              {(calendarioData.get(diaSelecionado) || []).length === 0 ? (
+                <p className="text-slate-400 text-sm text-center py-8">Nenhum contato agendado para este dia.</p>
+              ) : (
+                <div className="divide-y divide-slate-50">
+                  {(calendarioData.get(diaSelecionado) || []).map(c => {
+                    const meta    = TIER_META[c.tier as Tier];
+                    const sMeta   = STATUS_META[c.status as StatusContato];
+                    const ct      = CONTATO_TIER[c.tier as Tier];
+                    const salvando = salvandoContato === c.codigo_conta;
+                    return (
+                      <div key={c.codigo_conta}
+                        className={`px-5 py-3 flex flex-col sm:flex-row sm:items-center gap-3 ${
+                          c.status === "atrasado" ? "bg-red-50/20" : ""
+                        }`}>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-medium text-slate-800 truncate">{c.nome}</span>
+                            <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${meta.badge}`}>{c.tier}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${sMeta.cor}`}>{sMeta.label}</span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5">
+                            <span className="text-xs text-slate-400 font-mono">{c.codigo_conta}</span>
+                            {c.dias !== null
+                              ? <span className="text-xs text-slate-400">{c.dias}d sem contato · cadência {c.cadencia}d</span>
+                              : <span className="text-xs text-slate-400 italic">Nunca contatado</span>
+                            }
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-lg font-medium whitespace-nowrap">
+                            {ct.icon} {ct.label}
+                          </span>
+                          <button onClick={() => registrarContato(c.codigo_conta)} disabled={salvando}
+                            className="text-xs bg-[#f5e8e7] text-svn-ruby px-2.5 py-1 rounded-lg hover:bg-svn-ruby hover:text-white disabled:opacity-50 transition-colors font-medium whitespace-nowrap">
+                            {salvando ? "..." : "☎ Contatei"}
+                          </button>
+                          <button onClick={() => setModalNota({ conta: c.codigo_conta, nome: c.nome })}
+                            className="text-xs border border-slate-200 text-slate-500 px-2 py-1 rounded-lg hover:border-svn-ruby hover:text-svn-ruby transition-colors">
+                            📝
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )} {/* fim vista calendario */}
 
       {/* Legenda */}
       <div className="bg-white rounded-xl border border-slate-200 px-5 py-4">
