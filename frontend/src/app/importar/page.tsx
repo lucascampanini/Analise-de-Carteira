@@ -122,14 +122,22 @@ async function parsearClientes(fileRelatorio: File, filePositivador: File) {
 // ── Parsers: Diversificador ───────────────────────────────────────────────────
 function parseDataExcel(v: any): string {
   if (!v && v !== 0) return "";
+  // Número serial do Excel
   if (typeof v === "number") {
     const d = new Date(Math.round((v - 25569) * 86400000));
     return d.toISOString().slice(0, 10);
   }
   const s = String(v).trim();
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
-  return s.slice(0, 10);
+  // DD/MM/YYYY ou DD/MM/YYYY HH:MM:SS (sem $ para aceitar sufixo de hora)
+  const dmy = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  if (dmy) return `${dmy[3]}-${dmy[2]}-${dmy[1]}`;
+  // YYYY-MM-DD (ISO, com possível sufixo de hora)
+  const iso = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (iso) return iso[1];
+  // DD-MM-YYYY
+  const dmy2 = s.match(/^(\d{2})-(\d{2})-(\d{4})/);
+  if (dmy2) return `${dmy2[3]}-${dmy2[2]}-${dmy2[1]}`;
+  return "";
 }
 
 function normalizeClasse(raw: string): string {
@@ -184,7 +192,7 @@ async function parsearDiversificador(file: File) {
   const colLiq   = mapCol(headers, "prazoderesgate", "liquidez", "prazo", "resgate");
   const colRent  = mapCol(headers, "rentabilidade12m", "rent12m", "rentabilidade");
   const colCNPJ  = mapCol(headers, "dsccnpjfundo", "cnpjfundo", "cnpjativo", "cnpj");
-  const colVenc  = mapCol(headers, "datvencimento", "datavencimento", "dtavencimento", "vencimento", "datavenc", "dtvenc");
+  const colVenc  = mapCol(headers, "datvencimento", "datavencimento", "dtavencimento", "dtvencimento", "vencimento", "datavenc", "dtvenc", "dtvenc", "maturidade", "maturity", "prazofinaldeinvestimento", "datafinal");
 
   const parsed = rows.map((r: any) => {
     const valor = parseFloat(String(r[colValor!] ?? "0").replace(/[^0-9.,-]/g, "").replace(",", ".")) || 0;

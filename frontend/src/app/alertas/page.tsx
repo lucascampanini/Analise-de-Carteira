@@ -99,9 +99,13 @@ export default function AlertasPage() {
         {vencimentosRF.length === 0 ? (
           <div className="bg-white rounded-xl border border-slate-200 p-8 text-center text-slate-400 text-sm">
             Nenhum vencimento de RF nos próximos 30 dias.
-            {posicoes.filter(p => p.classe === "Renda Fixa" && p.data_vencimento).length === 0 && (
-              <p className="text-xs mt-1 text-slate-300">Reimporte o Diversificador para carregar datas de vencimento.</p>
-            )}
+            {(() => {
+              const rf = posicoes.filter(p => p.classe === "Renda Fixa" || (p.ativo || "").toLowerCase().match(/cdb|lci|lca|cri|cra|tesouro|debentur/));
+              const comVenc = rf.filter(p => p.data_vencimento);
+              if (rf.length === 0) return <p className="text-xs mt-1 text-slate-300">Nenhuma posição de RF encontrada. Importe o Diversificador.</p>;
+              if (comVenc.length === 0) return <p className="text-xs mt-1 text-slate-300">{rf.length} posições de RF encontradas, mas sem data de vencimento. Reimporte o Diversificador — o arquivo pode não ter a coluna de vencimento preenchida.</p>;
+              return <p className="text-xs mt-1 text-slate-300">{comVenc.length} posições com vencimento, mas nenhuma vence nos próximos 30 dias.</p>;
+            })()}
           </div>
         ) : (
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
