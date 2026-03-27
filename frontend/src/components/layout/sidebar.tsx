@@ -3,12 +3,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart, FolderInput, Search, Calculator,
+  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart, FolderInput, Search, Calculator, Star,
 } from "lucide-react";
 
 const nav = [
   { href: "/",              icon: LayoutDashboard, label: "Dashboard" },
   { href: "/clientes",      icon: Users,           label: "Clientes"  },
+  { href: "/supernova",     icon: Star,            label: "Supernova" },
   { href: "/fundos",        icon: BarChart2,        label: "Carteira"  },
   { href: "/fundos-lista",  icon: PieChart,         label: "Fundos"    },
   { href: "/alertas",       icon: Bell,            label: "Alertas"   },

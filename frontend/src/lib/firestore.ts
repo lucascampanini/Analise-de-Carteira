@@ -342,6 +342,24 @@ export async function importarFundosInfo(uid: string, fundos: any[]) {
   return fundos.length;
 }
 
+// ──────────────────────────────────────────────
+// SUPERNOVA
+// ──────────────────────────────────────────────
+export async function getAllAnotacoes(uid: string) {
+  const snap = await getDocs(col(uid, "anotacoes"));
+  return snap2arr(snap);
+}
+
+export async function getSupernovaConfig(uid: string) {
+  const ref = doc(db, "users", uid, "config", "supernova");
+  const snap = await getDoc(ref);
+  return snap.exists() ? snap.data() : null;
+}
+
+export async function setSupernovaConfig(uid: string, config: any) {
+  await setDoc(doc(db, "users", uid, "config", "supernova"), config);
+}
+
 export async function deletarPosicoesCliente(uid: string, conta: string) {
   const existing = await getDocs(col(uid, "posicoes"));
   const doConta = existing.docs.filter((d) => d.data().codigo_conta === conta);
