@@ -20,3 +20,7 @@ body {
 h1, h2 {
   font-family: 'Cormorant Garamond', serif;
 }
+
+/* Esconde scrollbar nativo mantendo scroll funcional */
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

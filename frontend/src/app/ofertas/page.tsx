@@ -95,6 +95,8 @@ export default function OfertasPage() {
 
   const fileRef = useRef<HTMLInputElement>(null);
 
+  const crossContentRef = useRef<HTMLDivElement>(null);
+
   const load = useCallback(async () => {
     if (!user) return;
     const [ofs, oc, cls, pos, fi] = await Promise.all([
@@ -300,31 +302,33 @@ export default function OfertasPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Ofertas Mensais</h1>
           <p className="text-slate-500 text-sm">{ofertas.length} oferta{ofertas.length !== 1 ? "s" : ""}</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col items-start sm:items-end gap-2">
           {msgImport && (
             <span className={`text-xs ${msgImport.startsWith("Erro") ? "text-red-600" : "text-emerald-600"}`}>
               {msgImport}
             </span>
           )}
-          <button onClick={baixarTemplate}
-            className="text-xs border border-slate-300 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors">
-            ⬇ Template
-          </button>
-          <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
-            onChange={(e) => e.target.files?.[0] && importarExcel(e.target.files[0])} />
-          <button onClick={() => fileRef.current?.click()} disabled={importando}
-            className="text-xs border border-slate-300 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors">
-            {importando ? "Importando..." : "⬆ Importar Excel"}
-          </button>
-          <button onClick={() => setShowForm(true)}
-            className="bg-svn-ruby text-white text-sm px-4 py-2 rounded-lg hover:bg-svn-ruby-dark transition-colors">
-            + Nova Oferta
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={baixarTemplate}
+              className="text-xs border border-slate-300 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 transition-colors">
+              ⬇ Template
+            </button>
+            <input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden"
+              onChange={(e) => e.target.files?.[0] && importarExcel(e.target.files[0])} />
+            <button onClick={() => fileRef.current?.click()} disabled={importando}
+              className="text-xs border border-slate-300 text-slate-600 px-3 py-2 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors">
+              {importando ? "Importando..." : "⬆ Importar Excel"}
+            </button>
+            <button onClick={() => setShowForm(true)}
+              className="bg-svn-ruby text-white text-sm px-4 py-2 rounded-lg hover:bg-svn-ruby-dark transition-colors">
+              + Nova Oferta
+            </button>
+          </div>
         </div>
       </div>
 
@@ -376,7 +380,7 @@ export default function OfertasPage() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: "Volume total ofertado", valor: brl(totalVolume),     cor: "text-slate-800"   },
           { label: "Receita prevista",       valor: brl(totalReceita),    cor: "text-svn-ruby"    },
@@ -390,81 +394,87 @@ export default function OfertasPage() {
       </div>
 
       {/* Resumo por produto */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-slate-100">
           <h2 className="font-semibold text-slate-800">Resumo por produto</h2>
         </div>
         {ofertasComMetricas.length === 0 ? (
           <p className="text-slate-400 text-sm text-center py-8">Nenhuma oferta criada ainda</p>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wide">
-                <th className="px-5 py-3 text-left">Produto</th>
-                <th className="px-5 py-3 text-right">Volume</th>
-                <th className="px-5 py-3 text-right">ROA</th>
-                <th className="px-5 py-3 text-right">Rec. em aberto</th>
-                <th className="px-5 py-3 text-right">Confirmado (fin+res)</th>
-                <th className="px-5 py-3 text-right">Liquidação</th>
-                <th className="px-5 py-3 text-center">Progresso</th>
-                <th className="px-5 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {ofertasComMetricas.map((o) => {
-                const dias = diasAte(o.data_liquidacao);
-                const confirmados = (o.por_status?.FINALIZADO || 0) + (o.por_status?.RESERVADO || 0);
-                const pct = o.total_clientes > 0
-                  ? Math.round((confirmados / o.total_clientes) * 100) : 0;
-                return (
-                  <tr key={o.id} className="hover:bg-slate-50 transition-colors">
-                    <td className="px-5 py-3">
-                      <span className="font-semibold text-slate-800">{o.nome}</span>
-                      {o.descricao && <p className="text-xs text-slate-400">{o.descricao}</p>}
-                    </td>
-                    <td className="px-5 py-3 text-right font-medium">{brl(o.total_ofertado)}</td>
-                    <td className="px-5 py-3 text-right text-slate-600">{o.roa?.toFixed(2)}%</td>
-                    <td className="px-5 py-3 text-right text-svn-ruby font-semibold">{brl(o.receita_em_aberto)}</td>
-                    <td className="px-5 py-3 text-right text-emerald-700 font-semibold">{brl(o.receita_confirmada)}</td>
-                    <td className="px-5 py-3 text-right">
-                      {o.data_liquidacao ? (
-                        <span className={`text-xs font-medium ${dias !== null && dias <= 7 ? "text-red-600" : "text-slate-600"}`}>
-                          {new Date(o.data_liquidacao + "T00:00:00").toLocaleDateString("pt-BR")}
-                          {dias !== null && <span className="text-slate-400 ml-1">({dias}d)</span>}
-                        </span>
-                      ) : <span className="text-slate-300">—</span>}
-                    </td>
-                    <td className="px-5 py-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
-                          <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
+          <TopScrollWrapper>
+            <table className="text-sm whitespace-nowrap">
+              <thead>
+                <tr className="border-b border-slate-100 text-xs text-slate-500 uppercase tracking-wide">
+                  <th className="px-5 py-3 text-left">Produto</th>
+                  <th className="px-5 py-3 text-right">Volume</th>
+                  <th className="px-5 py-3 text-right">ROA</th>
+                  <th className="px-5 py-3 text-right">Rec. em aberto</th>
+                  <th className="px-5 py-3 text-right">Confirmado</th>
+                  <th className="px-5 py-3 text-right">Liquidação</th>
+                  <th className="px-5 py-3 text-center">Progresso</th>
+                  <th className="px-5 py-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {ofertasComMetricas.map((o) => {
+                  const dias = diasAte(o.data_liquidacao);
+                  const confirmados = (o.por_status?.FINALIZADO || 0) + (o.por_status?.RESERVADO || 0);
+                  const pct = o.total_clientes > 0
+                    ? Math.round((confirmados / o.total_clientes) * 100) : 0;
+                  return (
+                    <tr key={o.id} className="hover:bg-slate-50 transition-colors">
+                      <td className="px-5 py-3">
+                        <span className="font-semibold text-slate-800">{o.nome}</span>
+                        {o.descricao && <p className="text-xs text-slate-400 whitespace-normal max-w-[200px]">{o.descricao}</p>}
+                      </td>
+                      <td className="px-5 py-3 text-right font-medium">{brl(o.total_ofertado)}</td>
+                      <td className="px-5 py-3 text-right text-slate-600">{o.roa?.toFixed(2)}%</td>
+                      <td className="px-5 py-3 text-right text-svn-ruby font-semibold">{brl(o.receita_em_aberto)}</td>
+                      <td className="px-5 py-3 text-right text-emerald-700 font-semibold">{brl(o.receita_confirmada)}</td>
+                      <td className="px-5 py-3 text-right">
+                        {o.data_liquidacao ? (
+                          <span className={`text-xs font-medium ${dias !== null && dias <= 7 ? "text-red-600" : "text-slate-600"}`}>
+                            {new Date(o.data_liquidacao + "T00:00:00").toLocaleDateString("pt-BR")}
+                            {dias !== null && <span className="text-slate-400 ml-1">({dias}d)</span>}
+                          </span>
+                        ) : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="px-5 py-3">
+                        <div className="flex items-center gap-2 w-24">
+                          <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <div className="h-full bg-emerald-500 rounded-full" style={{ width: `${pct}%` }} />
+                          </div>
+                          <span className="text-xs text-slate-500 shrink-0">{pct}%</span>
                         </div>
-                        <span className="text-xs text-slate-500 shrink-0">{pct}%</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3 text-right">
-                      <button onClick={() => removerOferta(o.id, o.nome)}
-                        className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        <button onClick={() => removerOferta(o.id, o.nome)}
+                          className="text-xs text-red-400 hover:text-red-600 transition-colors">✕</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </TopScrollWrapper>
         )}
       </div>
 
       {/* Tabela cruzada: clientes × ofertas */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="px-5 py-4 border-b border-slate-100 flex items-center gap-4">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+
+        {/* Scrollbar customizado no topo */}
+        {colunas.length > 0 && <CustomScrollbar contentRef={crossContentRef} />}
+
+        <div className="px-5 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
           <h2 className="font-semibold text-slate-800 shrink-0">Clientes por oferta</h2>
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
             placeholder="Buscar cliente..."
-            className="max-w-xs flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby"
+            className="min-w-[140px] flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby"
           />
-          <span className="text-xs text-slate-400 ml-auto shrink-0">
+          <span className="text-xs text-slate-400 shrink-0">
             {clientesTabela.length} clientes · {colunas.length} oferta{colunas.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -472,14 +482,14 @@ export default function OfertasPage() {
         {colunas.length === 0 ? (
           <p className="text-slate-400 text-sm text-center py-10">Crie uma oferta para começar</p>
         ) : (
-          <div className="overflow-x-auto">
+          <div ref={crossContentRef} className="overflow-x-auto no-scrollbar">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-slate-100 text-xs text-slate-500 bg-slate-50">
-                  <th className="px-4 py-3 text-left sticky left-0 bg-slate-50 z-10 min-w-[220px]">Cliente</th>
-                  <th className="px-4 py-3 text-right min-w-[100px]">Net</th>
-                  <th className="px-4 py-3 text-right min-w-[110px]" title="Fundos D+0/D+1 e RF vencida">Liquidez D+1</th>
-                  <th className="px-4 py-3 text-right min-w-[110px]" title="Fundos até D+6">Liquidez D+6</th>
+                  <th className="px-4 py-3 text-left sticky left-0 bg-slate-50 z-10 min-w-[180px]">Cliente</th>
+                  <th className="px-4 py-3 text-right min-w-[90px]">Net</th>
+                  <th className="hidden md:table-cell px-4 py-3 text-right min-w-[100px]" title="Fundos D+0/D+1 e RF vencida">Liq. D+1</th>
+                  <th className="hidden md:table-cell px-4 py-3 text-right min-w-[100px]" title="Fundos até D+6">Liq. D+6</th>
                   {colunas.map((o) => {
                     const ativo = filtroOfertaId === o.id;
                     return (
@@ -527,7 +537,7 @@ export default function OfertasPage() {
                     </td>
 
                     {/* Liquidez D+1 */}
-                    <td className="px-4 py-2 text-right text-xs font-medium whitespace-nowrap">
+                    <td className="hidden md:table-cell px-4 py-2 text-right text-xs font-medium whitespace-nowrap">
                       {liquidezD1(c.codigo_conta) > 0
                         ? <span className="text-emerald-700">{brl(liquidezD1(c.codigo_conta))}</span>
                         : <span className="text-slate-300">—</span>
@@ -535,7 +545,7 @@ export default function OfertasPage() {
                     </td>
 
                     {/* Liquidez D+6 */}
-                    <td className="px-4 py-2 text-right text-xs font-medium whitespace-nowrap">
+                    <td className="hidden md:table-cell px-4 py-2 text-right text-xs font-medium whitespace-nowrap">
                       {liquidezD6(c.codigo_conta) > 0
                         ? <span className="text-svn-ruby">{brl(liquidezD6(c.codigo_conta))}</span>
                         : <span className="text-slate-300">—</span>
@@ -637,11 +647,11 @@ export default function OfertasPage() {
               <tfoot>
                 <tr className="border-t-2 border-slate-200 bg-slate-50 text-xs font-semibold">
                   <td className="px-4 py-3 text-slate-500 sticky left-0 bg-slate-50">TOTAL</td>
-                  <td className="px-4 py-3 text-right text-slate-700">
+                  <td className="px-4 py-3 text-right text-slate-700 whitespace-nowrap">
                     {brl(clientesTabela.reduce((s, c) => s + (c.net || 0), 0))}
                   </td>
-                  <td />
-                  <td />
+                  <td className="hidden md:table-cell" />
+                  <td className="hidden md:table-cell" />
                   {colunas.map((o) => {
                     const oferta = ofertasComMetricas.find((x) => x.id === o.id);
                     return (
@@ -658,6 +668,110 @@ export default function OfertasPage() {
         )}
       </div>
     </div>
+  );
+}
+
+// ── Scrollbar customizado (sempre visível, arrastável) ────────────────────────
+function CustomScrollbar({ contentRef }: { contentRef: React.RefObject<HTMLDivElement | null> }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [thumb, setThumb] = useState({ left: 0, width: 30 });
+  const drag = useRef<{ startX: number; startScroll: number } | null>(null);
+
+  const update = useCallback(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const w = Math.max((el.clientWidth / el.scrollWidth) * 100, 8);
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    const l = maxScroll > 0 ? (el.scrollLeft / maxScroll) * (100 - w) : 0;
+    setThumb({ left: l, width: w });
+  }, [contentRef]);
+
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", update, { passive: true });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => { el.removeEventListener("scroll", update); ro.disconnect(); };
+  }, [update]);
+
+  useEffect(() => {
+    const move = (e: MouseEvent) => {
+      if (!drag.current || !contentRef.current || !trackRef.current) return;
+      const dx = e.clientX - drag.current.startX;
+      const trackW = trackRef.current.clientWidth;
+      const el = contentRef.current;
+      const ratio = (el.scrollWidth - el.clientWidth) / (trackW - trackW * (thumb.width / 100));
+      el.scrollLeft = drag.current.startScroll + dx * ratio;
+    };
+    const up = () => { drag.current = null; };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+    return () => { document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); };
+  }, [contentRef, thumb.width]);
+
+  return (
+    <div
+      ref={trackRef}
+      className="relative bg-slate-200 cursor-pointer"
+      style={{ height: 20 }}
+      onClick={(e) => {
+        if (!contentRef.current || !trackRef.current) return;
+        const rect = trackRef.current.getBoundingClientRect();
+        const ratio = (e.clientX - rect.left) / rect.width;
+        const el = contentRef.current;
+        el.scrollLeft = ratio * (el.scrollWidth - el.clientWidth);
+      }}
+    >
+      <div
+        className="absolute top-1 bottom-1 bg-svn-ruby hover:bg-svn-ruby-dark rounded-full cursor-grab active:cursor-grabbing transition-colors"
+        style={{ left: `${thumb.left}%`, width: `${thumb.width}%` }}
+        onMouseDown={(e) => {
+          drag.current = { startX: e.clientX, startScroll: contentRef.current?.scrollLeft ?? 0 };
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      />
+    </div>
+  );
+}
+
+// ── Scrollbar espelhado no topo ───────────────────────────────────────────────
+function TopScrollWrapper({ children }: { children: React.ReactNode }) {
+  const topRef     = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const phantomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updateWidth = () => {
+      if (contentRef.current && phantomRef.current)
+        phantomRef.current.style.width = contentRef.current.scrollWidth + "px";
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    if (contentRef.current) ro.observe(contentRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <>
+      <div
+        ref={topRef}
+        className="top-scroll-bar border-b border-slate-100"
+        style={{ height: 12 }}
+        onScroll={() => { if (contentRef.current && topRef.current) contentRef.current.scrollLeft = topRef.current.scrollLeft; }}
+      >
+        <div ref={phantomRef} style={{ height: 1 }} />
+      </div>
+      <div
+        ref={contentRef}
+        className="overflow-x-auto"
+        onScroll={() => { if (topRef.current && contentRef.current) topRef.current.scrollLeft = contentRef.current.scrollLeft; }}
+      >
+        {children}
+      </div>
+    </>
   );
 }
 

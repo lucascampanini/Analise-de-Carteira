@@ -35,7 +35,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   return (
     <>
       <Sidebar />
-      <main className="ml-56 min-h-screen p-6">{children}</main>
+      <main className="ml-14 md:ml-56 min-h-screen p-3 md:p-6">{children}</main>
     </>
   );
 }

@@ -67,7 +67,7 @@ function ClientePerfil({ conta, clientes, onVoltar }: { conta: string; clientes:
       {cliente && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
           <h2 className="font-semibold text-slate-800 mb-4">Dados do cliente</h2>
-          <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
               <p className="text-xs text-slate-500">Patrimônio (NET)</p>
               <p className="text-lg font-bold text-slate-800">{brl(cliente.net)}</p>
@@ -270,18 +270,18 @@ function ClientesLista({
         />
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Clientes</h1>
           <p className="text-slate-500 text-sm">{clientes.length} clientes</p>
         </div>
-        <div className="flex flex-col items-end gap-2">
+        <div className="flex flex-col items-start sm:items-end gap-2">
           {msgImport && (
             <span className={`text-xs ${msgImport.startsWith("Erro") || msgImport.startsWith("Nenhum") ? "text-red-600" : "text-emerald-600"}`}>
               {msgImport}
             </span>
           )}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {/* Input ocultos */}
             <input ref={refRelatorio} type="file" accept=".xlsx,.xls" className="hidden"
               onChange={(e) => setFileRelatorio(e.target.files?.[0] ?? null)} />
@@ -295,7 +295,7 @@ function ClientesLista({
                   ? "bg-emerald-50 border-emerald-400 text-emerald-700"
                   : "bg-white border-slate-300 text-slate-600 hover:border-svn-ruby hover:text-svn-ruby"
               }`}>
-              {fileRelatorio ? `✓ ${fileRelatorio.name.slice(0, 20)}…` : "1. Rel. Saldo (nome)"}
+              {fileRelatorio ? `✓ ${fileRelatorio.name.slice(0, 18)}…` : "1. Rel. Saldo"}
             </button>
 
             {/* Botão 2: Positivador (net) */}
@@ -305,7 +305,7 @@ function ClientesLista({
                   ? "bg-emerald-50 border-emerald-400 text-emerald-700"
                   : "bg-white border-slate-300 text-slate-600 hover:border-svn-ruby hover:text-svn-ruby"
               }`}>
-              {filePositivador ? `✓ ${filePositivador.name.slice(0, 20)}…` : "2. Positivador (net)"}
+              {filePositivador ? `✓ ${filePositivador.name.slice(0, 18)}…` : "2. Positivador"}
             </button>
 
             {/* Botão importar — só ativo quando os dois estão selecionados */}
@@ -368,13 +368,13 @@ function ClientesLista({
           </p>
         </div>
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <table className="w-full text-sm">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-x-auto">
+          <table className="w-full text-sm min-w-[400px]">
             <thead className="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Cliente</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Profissão</th>
-                <th className="text-left px-4 py-3 font-semibold text-slate-600">Nascimento</th>
+                <th className="hidden lg:table-cell text-left px-4 py-3 font-semibold text-slate-600">Profissão</th>
+                <th className="hidden md:table-cell text-left px-4 py-3 font-semibold text-slate-600">Nascimento</th>
                 <th className="text-left px-4 py-3 font-semibold text-slate-600">Perfil</th>
                 <th className="text-right px-4 py-3 font-semibold text-slate-600">Patrimônio</th>
                 <th className="px-4 py-3"></th>
@@ -396,8 +396,8 @@ function ClientesLista({
                       </div>
                       <span className="text-xs text-slate-400 font-mono">{c.codigo_conta}</span>
                     </td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{c.profissao || "—"}</td>
-                    <td className="px-4 py-3">
+                    <td className="hidden lg:table-cell px-4 py-3 text-slate-500 text-xs">{c.profissao || "—"}</td>
+                    <td className="hidden md:table-cell px-4 py-3">
                       {c.data_nascimento ? (
                         <span className="text-xs text-slate-600">
                           {normalizarDataNasc(c.data_nascimento) || "—"}
@@ -412,15 +412,15 @@ function ClientesLista({
                     <td className="px-4 py-3">
                       {suit && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cor}`}>{suit}</span>}
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-800">{brl(c.net)}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">{brl(c.net)}</td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex items-center justify-end gap-3">
+                      <div className="flex items-center justify-end gap-2">
                         <Link href={`/fundos?conta=${c.codigo_conta}`}
-                          className="text-emerald-600 hover:text-emerald-800 font-medium text-xs">
+                          className="text-emerald-600 hover:text-emerald-800 font-medium text-xs whitespace-nowrap">
                           Carteira →
                         </Link>
                         <button onClick={() => onSelectConta(c.codigo_conta)}
-                          className="text-svn-ruby hover:text-blue-800 font-medium text-xs">
+                          className="text-svn-ruby hover:text-blue-800 font-medium text-xs whitespace-nowrap">
                           Perfil →
                         </button>
                       </div>
