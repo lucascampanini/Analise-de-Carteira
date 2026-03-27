@@ -189,7 +189,9 @@ export default function SupernovaPage() {
   const calendarioData = new Map<number, typeof enriched>();
   diasUteis.forEach(d => calendarioData.set(d, []));
   // Round-robin por código de conta: garante distribuição uniforme (~N/diasUteis por dia)
-  const enrichedOrdenado = [...enriched].sort((a, b) => (b.net || 0) - (a.net || 0));
+  const enrichedOrdenado = [...enriched]
+    .filter(c => (c.net || 0) >= config.a2_min)
+    .sort((a, b) => (b.net || 0) - (a.net || 0));
   enrichedOrdenado.forEach((c, i) => {
     const dia = diasUteis[i % diasUteis.length];
     calendarioData.get(dia)?.push(c);
