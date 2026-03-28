@@ -274,42 +274,6 @@ export default function FundosListaPage() {
 
   return (
     <div className="space-y-6">
-
-      {/* Painel lateral — clientes que possuem o ativo */}
-      {ativoDetalhe && (
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/30" onClick={() => setAtivoDetalhe(null)} />
-          <div className="relative bg-white w-full max-w-sm h-full shadow-2xl flex flex-col">
-            <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <h2 className="font-semibold text-slate-800 text-sm leading-snug break-words">{ativoDetalhe}</h2>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  {clientesDoAtivo.length} cliente{clientesDoAtivo.length !== 1 ? "s" : ""} · {brl(clientesDoAtivo.reduce((s, p) => s + p.valor, 0))}
-                </p>
-              </div>
-              <button onClick={() => setAtivoDetalhe(null)} className="text-slate-400 hover:text-slate-700 shrink-0 text-lg leading-none">✕</button>
-            </div>
-            <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
-              {clientesDoAtivo.length === 0 ? (
-                <p className="text-slate-400 text-sm text-center py-10">Nenhum cliente encontrado</p>
-              ) : clientesDoAtivo.map((p, i) => (
-                <div key={p.codigo_conta} className="px-5 py-3 flex items-center gap-3 hover:bg-slate-50">
-                  <span className="text-xs text-slate-400 w-5 shrink-0">{i + 1}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate">{p.nome}</p>
-                    <p className="text-xs text-slate-400 font-mono">{p.codigo_conta}</p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <p className="text-sm font-bold text-slate-800">{brl(p.valor)}</p>
-                    <p className="text-xs text-slate-400">{p.pct_carteira.toFixed(1)}% da carteira</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Fundos & RF</h1>
@@ -392,35 +356,67 @@ export default function FundosListaPage() {
                     <th className="text-right px-4 py-3 font-semibold text-slate-600">%</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody>
                   {filtrados.map((x, i) => {
-                    const pct = pl > 0 ? (x.valor / pl) * 100 : 0;
+                    const pct      = pl > 0 ? (x.valor / pl) * 100 : 0;
+                    const aberto   = ativoDetalhe === x.ativo;
+                    const clisAtivo = aberto ? clientesDoAtivo : [];
                     return (
-                      <tr key={x.ativo} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setAtivoDetalhe(x.ativo)}>
-                        <td className="px-4 py-3 text-xs text-slate-400">{i + 1}</td>
-                        <td className="px-4 py-3">
-                          <p className="font-medium text-slate-800 max-w-xs truncate">{x.ativo}</p>
-                        </td>
-                        <td className="px-4 py-3 text-xs text-slate-500">{x.gestora}</td>
-                        <td className="px-4 py-3">
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{x.classe}</span>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LIQ_COR(x.total_dias)}`}>
-                            {x.prazo_fmt}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-right text-xs text-slate-500">{x.nClientes}</td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-800">{brl(x.valor)}</td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                              <div className="h-full bg-svn-ruby rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
+                      <>
+                        <tr
+                          key={x.ativo}
+                          className={`border-b border-slate-100 cursor-pointer transition-colors ${aberto ? "bg-[#f5e8e7]/40" : "hover:bg-slate-50"}`}
+                          onClick={() => setAtivoDetalhe(aberto ? null : x.ativo)}
+                        >
+                          <td className="px-4 py-3 text-xs text-slate-400">{i + 1}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1.5">
+                              <p className="font-medium text-slate-800 max-w-xs truncate">{x.ativo}</p>
+                              <span className="text-slate-400 text-xs">{aberto ? "▲" : "▼"}</span>
                             </div>
-                            <span className="text-xs text-slate-500 w-10 text-right">{pct.toFixed(1)}%</span>
-                          </div>
-                        </td>
-                      </tr>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-slate-500">{x.gestora}</td>
+                          <td className="px-4 py-3">
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">{x.classe}</span>
+                          </td>
+                          <td className="px-4 py-3 text-center">
+                            <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${LIQ_COR(x.total_dias)}`}>
+                              {x.prazo_fmt}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-right text-xs text-slate-500">{x.nClientes}</td>
+                          <td className="px-4 py-3 text-right font-bold text-slate-800">{brl(x.valor)}</td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-2">
+                              <div className="w-12 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                                <div className="h-full bg-svn-ruby rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
+                              </div>
+                              <span className="text-xs text-slate-500 w-10 text-right">{pct.toFixed(1)}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                        {aberto && (
+                          <tr key={`${x.ativo}-detail`} className="border-b border-slate-200 bg-slate-50">
+                            <td colSpan={8} className="px-6 py-3">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                                {clisAtivo.map((p, j) => (
+                                  <div key={p.codigo_conta} className="flex items-center gap-3 bg-white rounded-lg px-3 py-2 border border-slate-100">
+                                    <span className="text-xs text-slate-400 w-4 shrink-0">{j + 1}</span>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-xs font-medium text-slate-800 truncate">{p.nome}</p>
+                                      <p className="text-xs text-slate-400 font-mono">{p.codigo_conta}</p>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      <p className="text-xs font-bold text-slate-800">{brl(p.valor)}</p>
+                                      <p className="text-xs text-slate-400">{p.pct_carteira.toFixed(1)}%</p>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </>
                     );
                   })}
                 </tbody>
