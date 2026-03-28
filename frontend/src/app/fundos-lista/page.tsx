@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useCallback, ReactNode } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo, ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { getPosicoes, getClientes } from "@/lib/firestore";
@@ -201,18 +201,21 @@ export default function FundosListaPage() {
   const { user } = useAuth();
   const { refreshKey } = useDataRefresh();
   const [posicoes,   setPosicoes]   = useState<any[]>([]);
+  const [clientes,   setClientes]   = useState<any[]>([]);
   const [fundosInfo, setFundosInfo] = useState<any[]>([]);
   const [busca,      setBusca]      = useState("");
   const [filtroClasse, setFiltroClasse] = useState("Todos");
   const [importando, setImportando] = useState(false);
   const [msgImport,  setMsgImport]  = useState("");
+  const [ativoDetalhe, setAtivoDetalhe] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [pos, fi] = await Promise.all([getPosicoes(user.uid), getFundosInfo(user.uid)]);
+    const [pos, fi, cls] = await Promise.all([getPosicoes(user.uid), getFundosInfo(user.uid), getClientes(user.uid)]);
     setPosicoes(pos);
     setFundosInfo(fi);
+    setClientes(cls);
   }, [user, refreshKey]);
 
   useEffect(() => { load(); }, [load]);
@@ -251,8 +254,62 @@ export default function FundosListaPage() {
 
   const classes = ["Todos", ...Array.from(new Set(lista.map((x) => x.classe)))];
 
+  const plPorConta = useMemo(() => {
+    const map: Record<string, number> = {};
+    posicoes.forEach((p) => { map[p.codigo_conta] = (map[p.codigo_conta] || 0) + (p.valor || 0); });
+    return map;
+  }, [posicoes]);
+
+  const clientesDoAtivo = useMemo(() => {
+    if (!ativoDetalhe) return [];
+    return posicoes
+      .filter((p) => p.ativo === ativoDetalhe)
+      .map((p) => ({
+        ...p,
+        nome: clientes.find((c) => c.codigo_conta === p.codigo_conta)?.nome || p.codigo_conta,
+        pct_carteira: plPorConta[p.codigo_conta] > 0 ? (p.valor / plPorConta[p.codigo_conta]) * 100 : 0,
+      }))
+      .sort((a, b) => b.valor - a.valor);
+  }, [ativoDetalhe, posicoes, clientes, plPorConta]);
+
   return (
     <div className="space-y-6">
+
+      {/* Painel lateral — clientes que possuem o ativo */}
+      {ativoDetalhe && (
+        <div className="fixed inset-0 z-50 flex justify-end">
+          <div className="absolute inset-0 bg-black/30" onClick={() => setAtivoDetalhe(null)} />
+          <div className="relative bg-white w-full max-w-sm h-full shadow-2xl flex flex-col">
+            <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <h2 className="font-semibold text-slate-800 text-sm leading-snug break-words">{ativoDetalhe}</h2>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  {clientesDoAtivo.length} cliente{clientesDoAtivo.length !== 1 ? "s" : ""} · {brl(clientesDoAtivo.reduce((s, p) => s + p.valor, 0))}
+                </p>
+              </div>
+              <button onClick={() => setAtivoDetalhe(null)} className="text-slate-400 hover:text-slate-700 shrink-0 text-lg leading-none">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 divide-y divide-slate-100">
+              {clientesDoAtivo.length === 0 ? (
+                <p className="text-slate-400 text-sm text-center py-10">Nenhum cliente encontrado</p>
+              ) : clientesDoAtivo.map((p, i) => (
+                <div key={p.codigo_conta} className="px-5 py-3 flex items-center gap-3 hover:bg-slate-50">
+                  <span className="text-xs text-slate-400 w-5 shrink-0">{i + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-800 truncate">{p.nome}</p>
+                    <p className="text-xs text-slate-400 font-mono">{p.codigo_conta}</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-bold text-slate-800">{brl(p.valor)}</p>
+                    <p className="text-xs text-slate-400">{p.pct_carteira.toFixed(1)}% da carteira</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-800">Fundos & RF</h1>
@@ -339,7 +396,7 @@ export default function FundosListaPage() {
                   {filtrados.map((x, i) => {
                     const pct = pl > 0 ? (x.valor / pl) * 100 : 0;
                     return (
-                      <tr key={x.ativo} className="hover:bg-slate-50 transition-colors">
+                      <tr key={x.ativo} className="hover:bg-slate-50 transition-colors cursor-pointer" onClick={() => setAtivoDetalhe(x.ativo)}>
                         <td className="px-4 py-3 text-xs text-slate-400">{i + 1}</td>
                         <td className="px-4 py-3">
                           <p className="font-medium text-slate-800 max-w-xs truncate">{x.ativo}</p>
