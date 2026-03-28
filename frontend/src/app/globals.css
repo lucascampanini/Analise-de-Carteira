@@ -24,3 +24,7 @@ h1, h2 {
 /* Esconde scrollbar nativo mantendo scroll funcional */
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 .no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Barra de scroll espelhada no topo das tabelas */
+.top-scroll-bar { overflow-x: auto; -ms-overflow-style: none; scrollbar-width: none; }
+.top-scroll-bar::-webkit-scrollbar { display: none; }

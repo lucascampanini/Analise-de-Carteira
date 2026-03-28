@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useCallback, Suspense } from "react";
+import { useEffect, useRef, useState, useCallback, Suspense, ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { useSearchParams } from "next/navigation";
@@ -232,6 +232,43 @@ function enriquecerLiquidez(posicoes: any[], fundoMap: Record<string, any>): any
     }
     return p;
   });
+}
+
+function TopScrollWrapper({ children }: { children: ReactNode }) {
+  const topRef     = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const phantomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updateWidth = () => {
+      if (contentRef.current && phantomRef.current)
+        phantomRef.current.style.width = contentRef.current.scrollWidth + "px";
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    if (contentRef.current) ro.observe(contentRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <>
+      <div
+        ref={topRef}
+        className="top-scroll-bar border-b border-slate-100"
+        style={{ height: 12 }}
+        onScroll={() => { if (contentRef.current && topRef.current) contentRef.current.scrollLeft = topRef.current.scrollLeft; }}
+      >
+        <div ref={phantomRef} style={{ height: 1 }} />
+      </div>
+      <div
+        ref={contentRef}
+        className="overflow-x-auto"
+        onScroll={() => { if (topRef.current && contentRef.current) topRef.current.scrollLeft = contentRef.current.scrollLeft; }}
+      >
+        {children}
+      </div>
+    </>
+  );
 }
 
 function CarteiraDiversificacaoPageInner() {
@@ -473,7 +510,7 @@ function CarteiraDiversificacaoPageInner() {
                 className="flex-1 max-w-sm border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby" />
               <span className="text-xs text-slate-400 ml-auto shrink-0">{posFiltradas.length} posições</span>
             </div>
-            <div className="overflow-x-auto">
+            <TopScrollWrapper>
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
@@ -548,7 +585,7 @@ function CarteiraDiversificacaoPageInner() {
                   </tr>
                 </tfoot>
               </table>
-            </div>
+            </TopScrollWrapper>
           </div>
         </>
       )}

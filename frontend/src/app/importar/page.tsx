@@ -157,8 +157,9 @@ function normalizeClasse(raw: string): string {
 function normalizarClasseXP(produto: string, dscAtivo: string): string {
   const p = (produto || "").toLowerCase();
   const a = (dscAtivo || "").toLowerCase();
-  if (p.includes("previd")) return "Previdência";
-  if (p.includes("imobili") || p.includes("fii") || a.includes("fii")) return "FII";
+  if (p.includes("previd") || a.includes("previd")) return "Previdência";
+  // FII: verifica produto E nome do ativo (muitos FIIs têm "imobiliário" apenas no nome)
+  if (p.includes("imobili") || p.includes("fii") || a.includes("fii") || a.includes("imobili")) return "FII";
   if (p.includes("renda fixa") || p.includes("tesouro") || p.includes("credito privado")
     || p.includes("crédito privado") || p.includes("cdb") || p.includes("lci")
     || p.includes("lca") || p.includes("cri") || p.includes("cra")

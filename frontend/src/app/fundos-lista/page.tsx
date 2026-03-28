@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, ReactNode } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { getPosicoes, getClientes } from "@/lib/firestore";
@@ -152,6 +152,43 @@ function cruzarPosicoesFundos(posicoes: any[], fundosInfo: any[]) {
     .sort((a, b) => b.valor - a.valor);
 }
 
+function TopScrollWrapper({ children }: { children: ReactNode }) {
+  const topRef     = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const phantomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const updateWidth = () => {
+      if (contentRef.current && phantomRef.current)
+        phantomRef.current.style.width = contentRef.current.scrollWidth + "px";
+    };
+    updateWidth();
+    const ro = new ResizeObserver(updateWidth);
+    if (contentRef.current) ro.observe(contentRef.current);
+    return () => ro.disconnect();
+  }, []);
+
+  return (
+    <>
+      <div
+        ref={topRef}
+        className="top-scroll-bar border-b border-slate-100"
+        style={{ height: 12 }}
+        onScroll={() => { if (contentRef.current && topRef.current) contentRef.current.scrollLeft = topRef.current.scrollLeft; }}
+      >
+        <div ref={phantomRef} style={{ height: 1 }} />
+      </div>
+      <div
+        ref={contentRef}
+        className="overflow-x-auto"
+        onScroll={() => { if (topRef.current && contentRef.current) topRef.current.scrollLeft = contentRef.current.scrollLeft; }}
+      >
+        {children}
+      </div>
+    </>
+  );
+}
+
 const LIQ_COR = (dias: number) => {
   if (dias <= 1)  return "bg-emerald-100 text-emerald-700";
   if (dias <= 5)  return "bg-[#f5e8e7] text-svn-ruby";
@@ -284,7 +321,7 @@ export default function FundosListaPage() {
 
           {/* Tabela */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
+            <TopScrollWrapper>
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
@@ -340,7 +377,7 @@ export default function FundosListaPage() {
                   </tr>
                 </tfoot>
               </table>
-            </div>
+            </TopScrollWrapper>
           </div>
         </>
       )}
