@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState, useCallback, Suspense, ReactNode } from "react";
+import { useEffect, useRef, useState, useCallback, Suspense } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { useSearchParams } from "next/navigation";
@@ -234,40 +234,70 @@ function enriquecerLiquidez(posicoes: any[], fundoMap: Record<string, any>): any
   });
 }
 
-function TopScrollWrapper({ children }: { children: ReactNode }) {
-  const topRef     = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
-  const phantomRef = useRef<HTMLDivElement>(null);
+function CustomScrollbar({ contentRef }: { contentRef: React.RefObject<HTMLDivElement | null> }) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [thumb, setThumb] = useState({ left: 0, width: 30 });
+  const drag = useRef<{ startX: number; startScroll: number } | null>(null);
+
+  const update = useCallback(() => {
+    const el = contentRef.current;
+    if (!el) return;
+    const w = Math.max((el.clientWidth / el.scrollWidth) * 100, 8);
+    const maxScroll = el.scrollWidth - el.clientWidth;
+    const l = maxScroll > 0 ? (el.scrollLeft / maxScroll) * (100 - w) : 0;
+    setThumb({ left: l, width: w });
+  }, [contentRef]);
 
   useEffect(() => {
-    const updateWidth = () => {
-      if (contentRef.current && phantomRef.current)
-        phantomRef.current.style.width = contentRef.current.scrollWidth + "px";
+    const el = contentRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", update, { passive: true });
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => { el.removeEventListener("scroll", update); ro.disconnect(); };
+  }, [update]);
+
+  useEffect(() => {
+    const move = (e: MouseEvent) => {
+      if (!drag.current || !contentRef.current || !trackRef.current) return;
+      const dx = e.clientX - drag.current.startX;
+      const trackW = trackRef.current.clientWidth;
+      const el = contentRef.current;
+      const ratio = (el.scrollWidth - el.clientWidth) / (trackW - trackW * (thumb.width / 100));
+      el.scrollLeft = drag.current.startScroll + dx * ratio;
     };
-    updateWidth();
-    const ro = new ResizeObserver(updateWidth);
-    if (contentRef.current) ro.observe(contentRef.current);
-    return () => ro.disconnect();
-  }, []);
+    const up = () => { drag.current = null; };
+    document.addEventListener("mousemove", move);
+    document.addEventListener("mouseup", up);
+    return () => { document.removeEventListener("mousemove", move); document.removeEventListener("mouseup", up); };
+  }, [contentRef, thumb.width]);
+
+  if (thumb.width >= 100) return null;
 
   return (
-    <>
+    <div
+      ref={trackRef}
+      className="relative bg-slate-200 cursor-pointer"
+      style={{ height: 20 }}
+      onClick={(e) => {
+        if (!contentRef.current || !trackRef.current) return;
+        const rect = trackRef.current.getBoundingClientRect();
+        const ratio = (e.clientX - rect.left) / rect.width;
+        const el = contentRef.current;
+        el.scrollLeft = ratio * (el.scrollWidth - el.clientWidth);
+      }}
+    >
       <div
-        ref={topRef}
-        className="top-scroll-bar border-b border-slate-100"
-        style={{ height: 12 }}
-        onScroll={() => { if (contentRef.current && topRef.current) contentRef.current.scrollLeft = topRef.current.scrollLeft; }}
-      >
-        <div ref={phantomRef} style={{ height: 1 }} />
-      </div>
-      <div
-        ref={contentRef}
-        className="overflow-x-auto"
-        onScroll={() => { if (topRef.current && contentRef.current) topRef.current.scrollLeft = contentRef.current.scrollLeft; }}
-      >
-        {children}
-      </div>
-    </>
+        className="absolute top-1 bottom-1 bg-svn-ruby hover:bg-svn-ruby-dark rounded-full cursor-grab active:cursor-grabbing transition-colors"
+        style={{ left: `${thumb.left}%`, width: `${thumb.width}%` }}
+        onMouseDown={(e) => {
+          drag.current = { startX: e.clientX, startScroll: contentRef.current?.scrollLeft ?? 0 };
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+      />
+    </div>
   );
 }
 
@@ -283,7 +313,8 @@ function CarteiraDiversificacaoPageInner() {
   const [busca,      setBusca]      = useState("");
   const [importando, setImportando] = useState(false);
   const [msgImport,  setMsgImport]  = useState("");
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef   = useRef<HTMLInputElement>(null);
+  const tabelaRef = useRef<HTMLDivElement>(null);
 
   const loadPosicoes = useCallback(async () => {
     if (!user) return;
@@ -510,7 +541,8 @@ function CarteiraDiversificacaoPageInner() {
                 className="flex-1 max-w-sm border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby" />
               <span className="text-xs text-slate-400 ml-auto shrink-0">{posFiltradas.length} posições</span>
             </div>
-            <TopScrollWrapper>
+            <CustomScrollbar contentRef={tabelaRef} />
+            <div ref={tabelaRef} className="overflow-x-auto no-scrollbar">
               <table className="w-full text-sm">
                 <thead className="bg-slate-50 border-b border-slate-200">
                   <tr>
@@ -585,7 +617,7 @@ function CarteiraDiversificacaoPageInner() {
                   </tr>
                 </tfoot>
               </table>
-            </TopScrollWrapper>
+            </div>
           </div>
         </>
       )}
