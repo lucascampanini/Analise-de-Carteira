@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart, FolderInput, Search, Calculator, Star,
+  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart, FolderInput, Search, Calculator, Star, LineChart,
 } from "lucide-react";
 
 const nav = [
@@ -21,7 +21,8 @@ const nav = [
 ];
 
 const navExterno = [
-  { href: "https://simulador-consorcio-rho.vercel.app/", icon: Calculator, label: "Consórcio" },
+  { href: "https://simulador-consorcio-rho.vercel.app/", icon: Calculator, label: "Consórcio", externo: true  },
+  { href: "/projecao",                                   icon: LineChart,   label: "Projeção",  externo: false },
 ];
 
 export function Sidebar() {
@@ -65,20 +66,28 @@ export function Sidebar() {
           <div className="block md:hidden h-px bg-[#2e2420] mx-1" />
         </div>
 
-        {navExterno.map(({ href, icon: Icon, label }) => (
-          <a
-            key={href}
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            title={label}
-            className="flex items-center justify-center md:justify-start gap-3 px-0 md:px-3 py-2.5 md:py-2 rounded-lg text-sm transition-colors text-slate-400 hover:bg-[#2e2420] hover:text-white"
-          >
-            <Icon size={18} className="shrink-0" />
-            <span className="hidden md:block">{label}</span>
-            <span className="hidden md:block ml-auto text-slate-600 text-xs">↗</span>
-          </a>
-        ))}
+        {navExterno.map(({ href, icon: Icon, label, externo }) => {
+          const cls = (active: boolean) =>
+            `flex items-center justify-center md:justify-start gap-3 px-0 md:px-3 py-2.5 md:py-2 rounded-lg text-sm transition-colors ${
+              active ? "bg-svn-ruby text-white" : "text-slate-400 hover:bg-[#2e2420] hover:text-white"
+            }`;
+          if (externo) {
+            return (
+              <a key={href} href={href} target="_blank" rel="noopener noreferrer" title={label} className={cls(false)}>
+                <Icon size={18} className="shrink-0" />
+                <span className="hidden md:block">{label}</span>
+                <span className="hidden md:block ml-auto text-slate-600 text-xs">↗</span>
+              </a>
+            );
+          }
+          const active = path === href || (href !== "/" && path.startsWith(href));
+          return (
+            <Link key={href} href={href} title={label} className={cls(active)}>
+              <Icon size={18} className="shrink-0" />
+              <span className="hidden md:block">{label}</span>
+            </Link>
+          );
+        })}
       </nav>
 
       {/* Footer */}

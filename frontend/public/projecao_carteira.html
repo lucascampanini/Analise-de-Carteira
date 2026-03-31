@@ -1,0 +1,1325 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SVN Investimentos | Projeção de Carteira</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    /* ── SVN Brand Tokens ─────────────────────────────────── */
+    :root {
+      --paper:   #FFF8F3;
+      --carbon:  #221B19;
+      --body:    #3D3530;
+      --sky:     #CFE3DA;
+      --sky-dk:  #8FBCB0;
+      --ruby:    #AC3631;
+      --leather: #772B21;
+      --muted:   #B5A9A4;
+      --border:  #E8DDD8;
+      --white:   #FFFFFF;
+      --row-alt: #FDF4EE;
+      --green:   #2D7A5F;
+      --font-title: "Times New Roman", Times, serif;
+      --font-body:  Helvetica, Arial, sans-serif;
+      --radius: 6px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--paper);
+      color: var(--body);
+      font-family: var(--font-body);
+      font-size: 13px;
+      min-height: 100vh;
+    }
+
+    /* ── Header ───────────────────────────────────────────── */
+    header {
+      background: var(--carbon);
+      color: var(--white);
+      padding: 14px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    header .brand { font-family: var(--font-title); font-size: 20px; letter-spacing: 0.5px; }
+    header .brand span { color: var(--sky); }
+    header .subtitle { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    header .date-tag { font-size: 11px; color: var(--muted); text-align: right; }
+
+    /* ── Layout ───────────────────────────────────────────── */
+    main { max-width: 1400px; margin: 0 auto; padding: 24px 24px 60px; }
+
+    section { margin-bottom: 28px; }
+    section h2 {
+      font-family: var(--font-title);
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--carbon);
+      border-bottom: 2px solid var(--carbon);
+      padding-bottom: 6px;
+      margin-bottom: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    /* ── Parâmetros de Mercado ───────────────────────────── */
+    .params-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+    }
+    .param-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+    }
+    .param-card label {
+      display: block;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .param-card input, .param-card select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 7px 10px;
+      font-size: 14px;
+      font-family: var(--font-body);
+      color: var(--carbon);
+      background: var(--paper);
+      outline: none;
+    }
+    .param-card input:focus, .param-card select:focus {
+      border-color: var(--sky-dk);
+      box-shadow: 0 0 0 2px rgba(143,188,176,0.25);
+    }
+
+    /* ── Tabela de Ativos ─────────────────────────────────── */
+    .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; }
+    thead tr { background: var(--carbon); color: var(--white); }
+    thead th {
+      padding: 10px 8px;
+      text-align: left;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    thead th.center { text-align: center; }
+    tbody tr { border-bottom: 1px solid var(--border); }
+    tbody tr:nth-child(even) { background: var(--row-alt); }
+    tbody tr:hover { background: var(--sky); transition: background 0.15s; }
+    tbody td { padding: 7px 8px; vertical-align: middle; }
+    tbody td.computed {
+      font-size: 12px;
+      color: var(--green);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    tbody td.computed.isento { color: var(--ruby); }
+
+    table input, table select {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 5px 7px;
+      font-size: 12px;
+      font-family: var(--font-body);
+      color: var(--carbon);
+      background: transparent;
+      outline: none;
+      min-width: 80px;
+    }
+    table input:focus, table select:focus {
+      border-color: var(--sky-dk);
+      background: var(--white);
+    }
+    table input[type="number"] { text-align: right; }
+
+    /* Checkbox isento */
+    .chk-isento {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      cursor: pointer;
+    }
+    .chk-isento input { width: auto; min-width: unset; cursor: pointer; accent-color: var(--ruby); }
+    .badge-isento {
+      font-size: 9px;
+      background: var(--ruby);
+      color: var(--white);
+      border-radius: 3px;
+      padding: 1px 4px;
+      display: none;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .isento-row .badge-isento { display: inline-block; }
+
+    /* Remove btn */
+    .btn-remove {
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--muted);
+      font-size: 16px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .btn-remove:hover { color: var(--ruby); background: #fce8e7; }
+
+    /* Tfoot totais */
+    tfoot tr { background: var(--carbon); color: var(--white); font-weight: 700; }
+    tfoot td { padding: 9px 8px; font-size: 12px; }
+
+    /* Aviso % */
+    .pct-warning { color: var(--ruby); font-weight: 700; font-size: 11px; margin-top: 6px; display: none; }
+
+    /* ── Botão Adicionar ─────────────────────────────────── */
+    .btn-add {
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--carbon);
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius);
+      padding: 9px 18px;
+      font-size: 12px;
+      font-family: var(--font-body);
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+      transition: background 0.15s;
+    }
+    .btn-add:hover { background: var(--leather); }
+    .btn-add svg { width: 14px; height: 14px; }
+
+    /* ── Cards de Resumo ─────────────────────────────────── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+    }
+    .summary-card {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 14px 16px;
+      position: relative;
+      overflow: hidden;
+    }
+    .summary-card::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      width: 4px;
+    }
+    .summary-card.green::before { background: var(--green); }
+    .summary-card.blue::before  { background: var(--sky-dk); }
+    .summary-card.red::before   { background: var(--ruby); }
+    .summary-card.dark::before  { background: var(--carbon); }
+
+    .summary-card .label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--muted);
+      margin-bottom: 6px;
+    }
+    .summary-card .value {
+      font-size: 22px;
+      font-weight: 700;
+      font-family: var(--font-title);
+      color: var(--carbon);
+      line-height: 1;
+    }
+    .summary-card .sub {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* ── Projeção Table ──────────────────────────────────── */
+    .proj-table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--border); }
+    .proj-table { width: 100%; border-collapse: collapse; }
+    .proj-table thead tr { background: var(--carbon); color: var(--white); }
+    .proj-table thead th {
+      padding: 10px 12px;
+      text-align: right;
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+    }
+    .proj-table thead th:first-child { text-align: left; }
+    .proj-table tbody tr { border-bottom: 1px solid var(--border); }
+    .proj-table tbody tr:nth-child(even) { background: var(--row-alt); }
+    .proj-table tbody td {
+      padding: 9px 12px;
+      text-align: right;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+    .proj-table tbody td:first-child { text-align: left; font-weight: 700; color: var(--carbon); }
+    .proj-table .pos { color: var(--green); font-weight: 600; }
+    .proj-table .neg { color: var(--ruby); font-weight: 600; }
+
+    /* ── Chart ───────────────────────────────────────────── */
+    .chart-container {
+      background: var(--white);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      position: relative;
+      height: 340px;
+    }
+
+    /* ── Tooltip de grossup ──────────────────────────────── */
+    .tooltip-icon {
+      display: inline-block;
+      width: 14px; height: 14px;
+      background: var(--sky-dk);
+      color: var(--white);
+      border-radius: 50%;
+      font-size: 9px;
+      text-align: center;
+      line-height: 14px;
+      cursor: help;
+      font-weight: 700;
+      margin-left: 3px;
+    }
+
+    /* ── Footer ──────────────────────────────────────────── */
+    footer {
+      background: var(--carbon);
+      color: var(--muted);
+      text-align: center;
+      padding: 12px;
+      font-size: 10px;
+      letter-spacing: 0.5px;
+    }
+    footer span { color: var(--sky); }
+
+    /* ── Responsive tweaks ───────────────────────────────── */
+    @media (max-width: 768px) {
+      main { padding: 16px; }
+      .params-grid { grid-template-columns: 1fr 1fr; }
+    }
+
+    /* ── Botão PDF ──────────────────────────────────────── */
+    .btn-pdf {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      background: var(--ruby);
+      color: var(--white);
+      border: none;
+      border-radius: var(--radius);
+      padding: 10px 20px;
+      font-size: 12px;
+      font-family: var(--font-body);
+      font-weight: 700;
+      cursor: pointer;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      transition: background 0.15s, transform 0.1s;
+      box-shadow: 0 2px 8px rgba(172,54,49,0.35);
+    }
+    .btn-pdf:hover { background: var(--leather); transform: translateY(-1px); }
+    .btn-pdf:active { transform: translateY(0); }
+    .btn-pdf svg { width: 15px; height: 15px; }
+    .btn-pdf.loading { opacity: 0.7; cursor: wait; }
+
+    /* Print */
+    @media print {
+      .btn-add, .btn-remove, .btn-pdf { display: none; }
+      header { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ HEADER ═══ -->
+<header>
+  <div>
+    <div class="brand">SVN <span>Investimentos</span> | XP</div>
+    <div class="subtitle">Ferramenta de Projeção de Carteira Sugerida</div>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:8px">
+    <div class="date-tag" id="dateTag"></div>
+    <button class="btn-pdf" onclick="gerarPDF(this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="12" y1="18" x2="12" y2="12"/>
+        <polyline points="9 15 12 18 15 15"/>
+      </svg>
+      Gerar PDF para Cliente
+    </button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ══════════════ PARÂMETROS DE MERCADO ══════════════ -->
+  <section>
+    <h2>Parâmetros de Mercado</h2>
+    <div class="params-grid">
+      <div class="param-card" style="border-left:3px solid var(--ruby)">
+        <label>Nome do Cliente</label>
+        <input type="text" id="nomeCliente" placeholder="Ex: João da Silva" />
+      </div>
+      <div class="param-card" style="border-left:3px solid var(--sky-dk)">
+        <label>Assessor</label>
+        <input type="text" id="nomeAssessor" placeholder="Ex: Lucas — SVN" />
+      </div>
+      <div class="param-card">
+        <label>CDI Anual (%)</label>
+        <input type="number" id="cdi" value="14.25" step="0.01" min="0" onchange="recalc()" />
+      </div>
+      <div class="param-card">
+        <label>IPCA Anual (%)</label>
+        <input type="number" id="ipca" value="5.48" step="0.01" min="0" onchange="recalc()" />
+      </div>
+      <div class="param-card">
+        <label>Valor da Carteira (R$)</label>
+        <input type="number" id="valorCarteira" value="1000000" step="1000" min="0" onchange="recalc()" />
+      </div>
+      <div class="param-card">
+        <label>Prazo Máximo de Projeção</label>
+        <select id="prazoMax" onchange="recalc()">
+          <option value="3">3 anos</option>
+          <option value="5" selected>5 anos</option>
+          <option value="7">7 anos</option>
+          <option value="10">10 anos</option>
+        </select>
+      </div>
+      <div class="param-card">
+        <label>Benchmark Principal</label>
+        <select id="benchmark" onchange="recalc()">
+          <option value="cdi100">100% CDI</option>
+          <option value="ipca6" selected>IPCA+6%</option>
+          <option value="ipca5">IPCA+5%</option>
+          <option value="pre15">PRE 15%</option>
+        </select>
+      </div>
+      <div class="param-card">
+        <label>IR de Referência p/ Gross-up</label>
+        <select id="irGrossup" onchange="recalc()">
+          <option value="0.225">22,5% (até 6m)</option>
+          <option value="0.20">20% (6-12m)</option>
+          <option value="0.175">17,5% (12-24m)</option>
+          <option value="0.15" selected>15% (acima 24m)</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ TABELA DE ATIVOS ════════════════════ -->
+  <section>
+    <h2>Composição da Carteira</h2>
+    <div class="table-wrap">
+      <table id="tbAtivos">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Tipo</th>
+            <th>Emissor / Descrição</th>
+            <th>Carência</th>
+            <th>Indexador</th>
+            <th class="center">Taxa</th>
+            <th class="center">% Cart.</th>
+            <th>Valor (R$)</th>
+            <th class="center">Isento IR</th>
+            <th>Tx Bruta Anual</th>
+            <th>Gross-up (equiv. tributável)
+              <span class="tooltip-icon" title="Converte a taxa isenta em equivalente tributável: taxa / (1 - IR%)">?</span>
+            </th>
+            <th>% CDI equiv.</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="tbBody">
+          <!-- rows via JS -->
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="6" style="text-align:right">TOTAL</td>
+            <td id="tfPct" style="text-align:center">–</td>
+            <td id="tfValor">–</td>
+            <td colspan="2"></td>
+            <td id="tfGrossup" style="color:var(--sky)">–</td>
+            <td id="tfPctCdi" style="color:var(--sky)">–</td>
+            <td></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+    <div class="pct-warning" id="pctWarning">⚠ Soma das % está em <span id="pctTotal">0</span>% — ajuste para totalizar 100%</div>
+    <button class="btn-add" onclick="addRow()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Adicionar Ativo
+    </button>
+  </section>
+
+  <!-- ══════════════ RESUMO ═══════════════════════════════ -->
+  <section>
+    <h2>Resumo da Carteira</h2>
+    <div class="summary-grid">
+      <div class="summary-card green">
+        <div class="label">Taxa Bruta Ponderada (a.a.)</div>
+        <div class="value" id="sTaxaBruta">–</div>
+        <div class="sub">Retorno antes do IR</div>
+      </div>
+      <div class="summary-card blue">
+        <div class="label">Taxa Líquida Ponderada (a.a.)</div>
+        <div class="value" id="sTaxaLiquida">–</div>
+        <div class="sub">Retorno após IR (15% ref.)</div>
+      </div>
+      <div class="summary-card red">
+        <div class="label">Gross-up Ponderado (a.a.)</div>
+        <div class="value" id="sGrossup">–</div>
+        <div class="sub">Equivalente tributável da carteira</div>
+      </div>
+      <div class="summary-card dark">
+        <div class="label">% CDI Equivalente (gross-up)</div>
+        <div class="value" id="sPctCdi">–</div>
+        <div class="sub">Vs CDI atual</div>
+      </div>
+      <div class="summary-card blue">
+        <div class="label">Benchmark</div>
+        <div class="value" id="sBenchmark">–</div>
+        <div class="sub" id="sBenchmarkLabel">–</div>
+      </div>
+      <div class="summary-card green">
+        <div class="label">Alpha vs Benchmark</div>
+        <div class="value" id="sAlpha">–</div>
+        <div class="sub">Gross-up − benchmark</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══════════════ PROJEÇÃO ═════════════════════════════ -->
+  <section>
+    <h2>Projeção de Rendimento</h2>
+    <div class="proj-table-wrap">
+      <table class="proj-table" id="projTable">
+        <thead>
+          <tr>
+            <th>Período</th>
+            <th>Valor Bruto (R$)</th>
+            <th>Rend. Bruto (R$)</th>
+            <th>IR Estimado (R$)</th>
+            <th>Valor Líquido (R$)</th>
+            <th>Rend. Líq. (R$)</th>
+            <th>Rend. Líq. (%)</th>
+            <th style="background:#2D4A3E">100% CDI Líq. (R$)</th>
+            <th style="background:#2D4A3E">CDI Rend. (%)</th>
+            <th style="background:#2D4A3E">Alpha vs CDI (R$)</th>
+            <th id="thBenchLabel">Benchmark (R$)</th>
+            <th>Rend. Bench. (%)</th>
+            <th>Alpha (R$)</th>
+          </tr>
+        </thead>
+        <tbody id="projBody">
+          <!-- rows via JS -->
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ══════════════ GRÁFICO ═══════════════════════════════ -->
+  <section>
+    <h2>Evolução do Patrimônio</h2>
+    <div class="chart-container">
+      <canvas id="chartEvolucao"></canvas>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <span>SVN Investimentos | XP</span> — Ferramenta interna de projeção. Valores são estimativas baseadas em premissas de taxa constante. Não constitui promessa de rentabilidade.
+</footer>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════════════════════
+let rows = [];
+let rowId = 0;
+let chartInstance = null;
+
+const TIPOS = ['CDB','LCI','LCA','CRI','CRA','Debênture','Fundo','PREV','Tesouro','Saldo','PRE','ETF','BDR','Ação','Outro'];
+const ISENTOS_AUTO = ['LCI','LCA','CRI','CRA'];
+
+const IR_TABLE = [
+  { dias: 180,  aliq: 0.225 },
+  { dias: 360,  aliq: 0.20  },
+  { dias: 720,  aliq: 0.175 },
+  { dias: Infinity, aliq: 0.15 },
+];
+
+function aliquotaIR(anos) {
+  const dias = Math.round(anos * 365);
+  for (const t of IR_TABLE) if (dias <= t.dias) return t.aliq;
+  return 0.15;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TAXA BRUTA ANUAL por indexador
+// ═══════════════════════════════════════════════════════════════
+function taxaBruta(row, cdi, ipca) {
+  const v = parseFloat(row.taxa) || 0;
+  switch (row.indexador) {
+    case 'pct_cdi':   return (v / 100) * cdi;
+    case 'cdi_mais':  return cdi + (v / 100);
+    case 'ipca_mais': return (1 + ipca) * (1 + v / 100) - 1;
+    case 'pre':       return v / 100;
+    default:          return 0;
+  }
+}
+
+function grossUp(taxa, irPct) {
+  if (irPct >= 1) irPct /= 100;
+  return taxa / (1 - irPct);
+}
+
+function pctCDI(taxa, cdi) {
+  return cdi === 0 ? 0 : (taxa / cdi) * 100;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  BENCHMARK
+// ═══════════════════════════════════════════════════════════════
+function benchmarkRate(cdi, ipca) {
+  const sel = document.getElementById('benchmark').value;
+  if (sel === 'cdi100') return cdi;
+  if (sel === 'ipca6')  return (1 + ipca) * (1.06) - 1;
+  if (sel === 'ipca5')  return (1 + ipca) * (1.05) - 1;
+  if (sel === 'pre15')  return 0.15;
+  return cdi;
+}
+
+function benchmarkLabel() {
+  const sel = document.getElementById('benchmark').value;
+  const labels = { cdi100:'100% CDI', ipca6:'IPCA+6%', ipca5:'IPCA+5%', pre15:'PRE 15%' };
+  return labels[sel] || sel;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ADD ROW
+// ═══════════════════════════════════════════════════════════════
+function addRow(tipo='CDB', emissor='', carencia='D+0', indexador='pct_cdi', taxa='100', pct='', isento=false) {
+  const id = ++rowId;
+  rows.push({ id, tipo, emissor, carencia, indexador, taxa, pct, isento });
+  renderRows();
+  recalc();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  REMOVE ROW
+// ═══════════════════════════════════════════════════════════════
+function removeRow(id) {
+  rows = rows.filter(r => r.id !== id);
+  renderRows();
+  recalc();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  UPDATE ROW FIELD
+// ═══════════════════════════════════════════════════════════════
+function updateRow(id, field, value) {
+  const r = rows.find(r => r.id === id);
+  if (!r) return;
+  r[field] = value;
+
+  // Auto-set isento for exempt types
+  if (field === 'tipo') {
+    if (ISENTOS_AUTO.includes(value)) {
+      r.isento = true;
+      const chk = document.getElementById(`chk_${id}`);
+      if (chk) chk.checked = true;
+    } else if (['CDB','Debênture','Fundo','PREV','Saldo','PRE','ETF','BDR','Ação','Outro'].includes(value)) {
+      r.isento = false;
+      const chk = document.getElementById(`chk_${id}`);
+      if (chk) chk.checked = false;
+    }
+    const tr = document.getElementById(`tr_${id}`);
+    if (tr) tr.classList.toggle('isento-row', r.isento);
+  }
+  if (field === 'isento') {
+    const tr = document.getElementById(`tr_${id}`);
+    if (tr) tr.classList.toggle('isento-row', r.isento);
+  }
+
+  recalc();
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RENDER ROWS
+// ═══════════════════════════════════════════════════════════════
+function renderRows() {
+  const cdi  = parseFloat(document.getElementById('cdi').value) / 100 || 0.1425;
+  const ipca = parseFloat(document.getElementById('ipca').value) / 100 || 0.0548;
+  const irRef = parseFloat(document.getElementById('irGrossup').value) || 0.15;
+  const valorCarteira = parseFloat(document.getElementById('valorCarteira').value) || 0;
+
+  const tbody = document.getElementById('tbBody');
+  tbody.innerHTML = '';
+
+  rows.forEach((r, idx) => {
+    const tb    = taxaBruta(r, cdi, ipca);
+    const gu    = r.isento ? grossUp(tb, irRef) : tb;
+    const pctC  = pctCDI(gu, cdi);
+    const pct   = parseFloat(r.pct) || 0;
+    const valor = valorCarteira * pct / 100;
+
+    const tipoOpts = TIPOS.map(t =>
+      `<option value="${t}" ${r.tipo===t?'selected':''}>${t}</option>`).join('');
+
+    const indexOpts = [
+      ['pct_cdi',  '% CDI'],
+      ['cdi_mais', 'CDI+'],
+      ['ipca_mais','IPCA+'],
+      ['pre',      'PRE'],
+    ].map(([v,l]) => `<option value="${v}" ${r.indexador===v?'selected':''}>${l}</option>`).join('');
+
+    const taxaPlaceholder = {
+      pct_cdi:'ex: 95', cdi_mais:'ex: 0.80', ipca_mais:'ex: 6.00', pre:'ex: 14.80'
+    }[r.indexador] || '';
+
+    const taxaLabel = {
+      pct_cdi:'% CDI', cdi_mais:'% (a.a.)', ipca_mais:'% (a.a.)', pre:'% (a.a.)'
+    }[r.indexador] || '';
+
+    const tr = document.createElement('tr');
+    tr.id = `tr_${r.id}`;
+    if (r.isento) tr.classList.add('isento-row');
+
+    tr.innerHTML = `
+      <td style="color:var(--muted);font-size:11px">${idx+1}</td>
+      <td>
+        <select onchange="updateRow(${r.id},'tipo',this.value)">
+          ${tipoOpts}
+        </select>
+      </td>
+      <td><input type="text" value="${r.emissor}" placeholder="Nome / código..."
+           onchange="updateRow(${r.id},'emissor',this.value)" /></td>
+      <td><input type="text" value="${r.carencia}" placeholder="D+0"
+           onchange="updateRow(${r.id},'carencia',this.value)" style="min-width:60px" /></td>
+      <td>
+        <select onchange="updateRow(${r.id},'indexador',this.value)">
+          ${indexOpts}
+        </select>
+      </td>
+      <td>
+        <input type="number" value="${r.taxa}" placeholder="${taxaPlaceholder}"
+               title="${taxaLabel}"
+               onchange="updateRow(${r.id},'taxa',this.value)"
+               style="min-width:70px" />
+      </td>
+      <td>
+        <input type="number" value="${r.pct}" min="0" max="100" step="0.1"
+               placeholder="0.0"
+               onchange="updateRow(${r.id},'pct',this.value)"
+               style="min-width:60px;text-align:center" />
+      </td>
+      <td style="color:var(--body);font-size:12px;white-space:nowrap">
+        ${valor > 0 ? 'R$ ' + fmt(valor) : '–'}
+      </td>
+      <td>
+        <label class="chk-isento">
+          <input type="checkbox" id="chk_${r.id}" ${r.isento?'checked':''}
+                 onchange="updateRow(${r.id},'isento',this.checked)" />
+          <span class="badge-isento">ISENTO</span>
+        </label>
+      </td>
+      <td class="computed">${pct2(tb)}</td>
+      <td class="computed ${r.isento?'isento':''}">
+        ${r.isento ? pct2(gu) + ' <small style="color:var(--muted);font-size:9px">bruto equiv.</small>' : '–'}
+      </td>
+      <td class="computed">${pct2(pctC/100)}</td>
+      <td><button class="btn-remove" onclick="removeRow(${r.id})" title="Remover">✕</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RECALC
+// ═══════════════════════════════════════════════════════════════
+function recalc() {
+  const cdi  = parseFloat(document.getElementById('cdi').value) / 100 || 0.1425;
+  const ipca = parseFloat(document.getElementById('ipca').value) / 100 || 0.0548;
+  const irRef = parseFloat(document.getElementById('irGrossup').value) || 0.15;
+  const valorCarteira = parseFloat(document.getElementById('valorCarteira').value) || 0;
+  const prazoMax = parseInt(document.getElementById('prazoMax').value) || 5;
+  const benchRate = benchmarkRate(cdi, ipca);
+  const bLabel = benchmarkLabel();
+
+  // ── Weighted metrics ──────────────────────────────────────
+  let totalPct = 0, wTaxaBruta = 0, wGrossup = 0, wLiquida = 0;
+  rows.forEach(r => {
+    const pct = parseFloat(r.pct) || 0;
+    const tb  = taxaBruta(r, cdi, ipca);
+    const gu  = r.isento ? grossUp(tb, irRef) : tb;
+    const liq = r.isento ? tb : tb * (1 - irRef);
+    totalPct    += pct;
+    wTaxaBruta  += (pct / 100) * tb;
+    wGrossup    += (pct / 100) * gu;
+    wLiquida    += (pct / 100) * liq;
+  });
+
+  // ── tfoot ─────────────────────────────────────────────────
+  const pctWarning = document.getElementById('pctWarning');
+  const diffPct = Math.abs(totalPct - 100);
+  pctWarning.style.display = rows.length > 0 && diffPct > 0.01 ? 'block' : 'none';
+  document.getElementById('pctTotal').textContent = totalPct.toFixed(2);
+
+  document.getElementById('tfPct').textContent    = totalPct.toFixed(2) + '%';
+  document.getElementById('tfValor').textContent  = rows.length ? 'R$ ' + fmt(valorCarteira * totalPct / 100) : '–';
+  document.getElementById('tfGrossup').textContent = rows.length ? pct2(wGrossup) : '–';
+  document.getElementById('tfPctCdi').textContent  = rows.length ? pct2(pctCDI(wGrossup, cdi)/100) : '–';
+
+  // ── Summary cards ─────────────────────────────────────────
+  document.getElementById('sTaxaBruta').textContent  = rows.length ? pct2(wTaxaBruta) : '–';
+  document.getElementById('sTaxaLiquida').textContent = rows.length ? pct2(wLiquida) : '–';
+  document.getElementById('sGrossup').textContent    = rows.length ? pct2(wGrossup) : '–';
+  document.getElementById('sPctCdi').textContent     = rows.length ? pct2(pctCDI(wGrossup, cdi)/100) : '–';
+  document.getElementById('sBenchmark').textContent  = pct2(benchRate);
+  document.getElementById('sBenchmarkLabel').textContent = bLabel;
+
+  const alpha = wGrossup - benchRate;
+  const alphaEl = document.getElementById('sAlpha');
+  alphaEl.textContent = rows.length ? pct2(alpha) : '–';
+  alphaEl.style.color = alpha >= 0 ? 'var(--green)' : 'var(--ruby)';
+
+  // ── Re-render rows (computed columns) ────────────────────
+  renderRows();
+
+  // ── Projeção ─────────────────────────────────────────────
+  const projBody = document.getElementById('projBody');
+  projBody.innerHTML = '';
+
+  const labels = [];
+  const dataBruta  = [valorCarteira];
+  const dataLiq    = [valorCarteira];
+  const dataBench  = [valorCarteira];
+  const dataCDI    = [valorCarteira];
+
+  for (let ano = 1; ano <= prazoMax; ano++) {
+    const dias = ano * 365;
+    const irAnual = aliquotaIR(ano);
+
+    // Carteira: projeção por ativo
+    let valorBruto = 0, valorLiq = 0;
+    rows.forEach(r => {
+      const pct  = (parseFloat(r.pct) || 0) / 100;
+      const va   = valorCarteira * pct;
+      const tb   = taxaBruta(r, cdi, ipca);
+      const bruto = va * Math.pow(1 + tb, ano);
+      const rend  = bruto - va;
+      const irPag = r.isento ? 0 : rend * irAnual;
+      valorBruto += bruto;
+      valorLiq   += bruto - irPag;
+    });
+
+    const rendBruto = valorBruto - valorCarteira;
+    const rendLiq   = valorLiq - valorCarteira;
+    const irEstimado = valorBruto - valorLiq;
+    const valorBench = valorCarteira * Math.pow(1 + benchRate, ano);
+    // Bench é tributável a 15% (assumindo ativo sem isenção)
+    const benchIR = (valorBench - valorCarteira) * irAnual;
+    const valorBenchLiq = valorBench - benchIR;
+    const rendBenchPct = (valorBenchLiq - valorCarteira) / valorCarteira;
+    // CDI como segundo benchmark (100% CDI líquido)
+    const valorCDI    = valorCarteira * Math.pow(1 + cdi, ano);
+    const valorCDILiq = valorCDI - (valorCDI - valorCarteira) * irAnual;
+    const rendCDIPct  = (valorCDILiq - valorCarteira) / valorCarteira;
+    const alphaCDI    = valorLiq - valorCDILiq;
+
+    const alpha_r = valorLiq - valorBenchLiq;
+
+    labels.push(`${ano} ano${ano>1?'s':''}`);
+    dataBruta.push(valorBruto);
+    dataLiq.push(valorLiq);
+    dataBench.push(valorBenchLiq);
+    dataCDI.push(valorCDILiq);
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${ano} ano${ano>1?'s':''}</td>
+      <td>R$ ${fmt(valorBruto)}</td>
+      <td class="pos">+ R$ ${fmt(rendBruto)}</td>
+      <td style="color:var(--ruby)">– R$ ${fmt(irEstimado)}</td>
+      <td>R$ ${fmt(valorLiq)}</td>
+      <td class="pos">+ R$ ${fmt(rendLiq)}</td>
+      <td class="pos">${pct2(rendLiq/valorCarteira)}</td>
+      <td style="background:rgba(45,74,62,0.06)">R$ ${fmt(valorCDILiq)}</td>
+      <td style="background:rgba(45,74,62,0.06)">${pct2(rendCDIPct)}</td>
+      <td style="background:rgba(45,74,62,0.06)" class="${alphaCDI>=0?'pos':'neg'}">${alphaCDI>=0?'+ ':' – '}R$ ${fmt(Math.abs(alphaCDI))}</td>
+      <td>R$ ${fmt(valorBenchLiq)}</td>
+      <td>${pct2(rendBenchPct)}</td>
+      <td class="${alpha_r>=0?'pos':'neg'}">${alpha_r>=0?'+ ':' – '}R$ ${fmt(Math.abs(alpha_r))}</td>
+    `;
+    projBody.appendChild(tr);
+  }
+
+  // Atualiza label do benchmark no cabeçalho
+  const thBench = document.getElementById('thBenchLabel');
+  if (thBench) thBench.textContent = bLabel + ' (R$)';
+
+  // ── Chart ─────────────────────────────────────────────────
+  const labelsChart = ['Hoje', ...labels];
+  updateChart(labelsChart, dataBruta, dataLiq, dataBench, dataCDI, bLabel);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CHART
+// ═══════════════════════════════════════════════════════════════
+function updateChart(labels, bruta, liq, bench, cdiData, bLabel) {
+  const ctx = document.getElementById('chartEvolucao').getContext('2d');
+  if (chartInstance) chartInstance.destroy();
+  chartInstance = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Carteira Bruta',
+          data: bruta,
+          borderColor: '#8FBCB0',
+          backgroundColor: 'rgba(143,188,176,0.10)',
+          borderWidth: 2,
+          borderDash: [6,3],
+          pointRadius: 4,
+          tension: 0.3,
+          fill: false,
+        },
+        {
+          label: 'Carteira Líquida (após IR)',
+          data: liq,
+          borderColor: '#221B19',
+          backgroundColor: 'rgba(34,27,25,0.07)',
+          borderWidth: 2.5,
+          pointRadius: 5,
+          tension: 0.3,
+          fill: false,
+        },
+        {
+          label: '100% CDI (líq.)',
+          data: cdiData,
+          borderColor: '#2D7A5F',
+          backgroundColor: 'rgba(45,122,95,0.07)',
+          borderWidth: 2,
+          borderDash: [3,3],
+          pointRadius: 4,
+          tension: 0.3,
+          fill: false,
+        },
+        {
+          label: bLabel + ' (líq.)',
+          data: bench,
+          borderColor: '#AC3631',
+          backgroundColor: 'rgba(172,54,49,0.07)',
+          borderWidth: 2,
+          borderDash: [4,4],
+          pointRadius: 4,
+          tension: 0.3,
+          fill: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          labels: {
+            font: { family: 'Helvetica, Arial, sans-serif', size: 11 },
+            color: '#3D3530',
+            usePointStyle: true,
+            pointStyleWidth: 16,
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: R$ ${fmt(ctx.parsed.y)}`
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          ticks: { font: { size: 11 }, color: '#7A6E6A' }
+        },
+        y: {
+          grid: { color: 'rgba(0,0,0,0.05)' },
+          ticks: {
+            font: { size: 11 },
+            color: '#7A6E6A',
+            callback: v => 'R$ ' + fmtK(v),
+          }
+        }
+      }
+    }
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  GERAR PDF
+// ═══════════════════════════════════════════════════════════════
+function gerarPDF(btn) {
+  if (!rows.length) { alert('Adicione ao menos um ativo antes de gerar o PDF.'); return; }
+
+  btn.classList.add('loading');
+  btn.textContent = 'Gerando…';
+
+  // Captura estado atual
+  const cdi          = parseFloat(document.getElementById('cdi').value) / 100 || 0.1425;
+  const ipca         = parseFloat(document.getElementById('ipca').value) / 100 || 0.0548;
+  const irRef        = parseFloat(document.getElementById('irGrossup').value) || 0.15;
+  const valorCart    = parseFloat(document.getElementById('valorCarteira').value) || 0;
+  const prazoMax     = parseInt(document.getElementById('prazoMax').value) || 5;
+  const bLabel       = benchmarkLabel();
+  const benchRate    = benchmarkRate(cdi, ipca);
+  const nomeCliente  = document.getElementById('nomeCliente').value || 'Cliente';
+  const nomeAssessor = document.getElementById('nomeAssessor').value || 'Assessor SVN';
+  const dataHoje     = new Date().toLocaleDateString('pt-BR', {day:'2-digit',month:'long',year:'numeric'});
+
+  // Métricas agregadas
+  let totalPct=0, wBruta=0, wGrossup=0, wLiq=0;
+  rows.forEach(r => {
+    const p = parseFloat(r.pct)||0;
+    const tb = taxaBruta(r,cdi,ipca);
+    const gu = r.isento ? grossUp(tb,irRef) : tb;
+    totalPct += p;
+    wBruta   += (p/100)*tb;
+    wGrossup += (p/100)*gu;
+    wLiq     += (p/100)*(r.isento ? tb : tb*(1-irRef));
+  });
+  const alpha = wGrossup - benchRate;
+  const pctCdiEq = cdi > 0 ? wGrossup/cdi : 0;
+
+  // Linha de cada ativo para o PDF
+  const rowsHtml = rows.map((r,i) => {
+    const pct = parseFloat(r.pct)||0;
+    const valor = valorCart * pct / 100;
+    const tb = taxaBruta(r,cdi,ipca);
+    const gu = r.isento ? grossUp(tb,irRef) : tb;
+    const idxLabel = {pct_cdi:'% CDI',cdi_mais:'CDI+',ipca_mais:'IPCA+',pre:'PRE'}[r.indexador]||'';
+    const taxaFmt = r.indexador==='pct_cdi'
+      ? `${parseFloat(r.taxa)||0}% CDI`
+      : r.indexador==='cdi_mais'
+        ? `CDI + ${parseFloat(r.taxa)||0}%`
+        : r.indexador==='ipca_mais'
+          ? `IPCA + ${parseFloat(r.taxa)||0}%`
+          : `${parseFloat(r.taxa)||0}% a.a.`;
+    const isenBadge = r.isento
+      ? '<span style="background:#AC3631;color:#fff;font-size:8px;padding:1px 5px;border-radius:3px;font-weight:700">ISENTO</span>'
+      : '';
+    const guCell = r.isento
+      ? `<span style="color:#AC3631;font-weight:700">${pct2(gu)}</span>`
+      : `<span style="color:#888">—</span>`;
+    const bg = i%2===0 ? '#fff' : '#FDF4EE';
+    return `<tr style="background:${bg}">
+      <td style="padding:6px 8px;border-bottom:1px solid #E8DDD8">${r.tipo} ${isenBadge}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #E8DDD8">${r.emissor||'—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #E8DDD8;text-align:center">${r.carencia||'—'}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #E8DDD8;text-align:center">${taxaFmt}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #E8DDD8;text-align:center">${pct.toFixed(1)}%</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #E8DDD8;text-align:right">R$ ${fmt(valor)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #E8DDD8;text-align:center;color:#2D7A5F;font-weight:600">${pct2(tb)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #E8DDD8;text-align:center">${guCell}</td>
+    </tr>`;
+  }).join('');
+
+  // Projeção
+  const projRows = [];
+  for (let ano=1; ano<=prazoMax; ano++) {
+    const irA = aliquotaIR(ano);
+    let vBruto=0, vLiq=0;
+    rows.forEach(r => {
+      const p = (parseFloat(r.pct)||0)/100;
+      const va = valorCart*p;
+      const tb = taxaBruta(r,cdi,ipca);
+      const bruto = va*Math.pow(1+tb,ano);
+      const irPag = r.isento ? 0 : (bruto-va)*irA;
+      vBruto += bruto; vLiq += bruto-irPag;
+    });
+    const rLiq = vLiq-valorCart;
+    const vCDI = valorCart*Math.pow(1+cdi,ano);
+    const vCDILiq = vCDI-(vCDI-valorCart)*irA;
+    const rCDI = vCDILiq-valorCart;
+    const alphaCDI = vLiq-vCDILiq;
+    const vBench = valorCart*Math.pow(1+benchRate,ano);
+    const vBenchLiq = vBench-(vBench-valorCart)*irA;
+    const rBench = vBenchLiq-valorCart;
+    const alphaR = vLiq-vBenchLiq;
+    const bg = ano%2===0 ? '#FDF4EE' : '#fff';
+    const aCDIColor = alphaCDI>=0 ? '#2D7A5F' : '#AC3631';
+    const aBColor   = alphaR>=0   ? '#2D7A5F' : '#AC3631';
+    projRows.push(`<tr style="background:${bg}">
+      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;font-weight:700;color:#221B19">${ano} ano${ano>1?'s':''}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:right">R$ ${fmt(vLiq)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:center;color:#2D7A5F;font-weight:700">${pct2(rLiq/valorCart)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:right;background:rgba(45,74,62,0.06)">R$ ${fmt(vCDILiq)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:center;background:rgba(45,74,62,0.06)">${pct2(rCDI/valorCart)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:right;font-weight:700;background:rgba(45,74,62,0.06);color:${aCDIColor}">${alphaCDI>=0?'+':''} R$ ${fmt(alphaCDI)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:right">R$ ${fmt(vBenchLiq)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:center;color:#555">${pct2(rBench/valorCart)}</td>
+      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:right;font-weight:700;color:${aBColor}">${alphaR>=0?'+':''} R$ ${fmt(alphaR)}</td>
+    </tr>`);
+  }
+
+  // Captura gráfico como imagem
+  const chartImg = chartInstance ? chartInstance.toBase64Image('image/png', 1) : null;
+  const chartSection = chartImg
+    ? `<div style="margin-top:28px">
+        <div style="background:#221B19;color:#fff;padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-radius:4px 4px 0 0">Evolução do Patrimônio</div>
+        <div style="border:1px solid #E8DDD8;border-top:none;border-radius:0 0 4px 4px;padding:16px;background:#fff">
+          <img src="${chartImg}" style="width:100%;height:auto;display:block" />
+        </div>
+       </div>`
+    : '';
+
+  // ── helpers de célula para o PDF ─────────────────────────
+  const TH = (txt, align='left', bg='#3D3530', extra='') =>
+    `<th style="padding:4px 6px;text-align:${align};font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;white-space:nowrap;background:${bg}${extra}">${txt}</th>`;
+  const TD = (txt, align='left', bold=false, color='inherit', bg='inherit') =>
+    `<td style="padding:3px 6px;text-align:${align};font-size:8px;${bold?'font-weight:700;':''}${color!=='inherit'?'color:'+color+';':''}${bg!=='inherit'?'background:'+bg+';':''}border-bottom:1px solid #E8DDD8;white-space:nowrap">${txt}</td>`;
+  const SEC = txt =>
+    `<div style="background:#221B19;color:#fff;padding:4px 8px;font-size:8px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-top:8px">${txt}</div>`;
+
+  const irPctFmt = (irRef*100).toFixed(1).replace('.',',') + '%';
+
+  // Linhas da tabela de ativos (compactas)
+  const rowsHtmlPdf = rows.map((r,i) => {
+    const pct   = parseFloat(r.pct)||0;
+    const valor = valorCart * pct / 100;
+    const tb    = taxaBruta(r,cdi,ipca);
+    const gu    = r.isento ? grossUp(tb,irRef) : tb;
+    const taxaFmt = r.indexador==='pct_cdi' ? `${parseFloat(r.taxa)||0}% CDI`
+      : r.indexador==='cdi_mais' ? `CDI+${parseFloat(r.taxa)||0}%`
+      : r.indexador==='ipca_mais' ? `IPCA+${parseFloat(r.taxa)||0}%`
+      : `${parseFloat(r.taxa)||0}%`;
+    const isenTag = r.isento ? ' <b style="color:#AC3631">[I]</b>' : '';
+    const bg = i%2===0 ? '#fff' : '#FDF4EE';
+    return `<tr style="background:${bg}">
+      ${TD(r.tipo+isenTag)}
+      ${TD(r.emissor||'—')}
+      ${TD(r.carencia||'—','center')}
+      ${TD(taxaFmt,'center')}
+      ${TD(pct.toFixed(1)+'%','center',true)}
+      ${TD('R$ '+fmt(valor),'right')}
+      ${TD(pct2(tb),'center',true,'#2D7A5F')}
+      ${TD(r.isento ? pct2(gu) : '—','center',r.isento,'#AC3631')}
+    </tr>`;
+  }).join('');
+
+  // Linhas da projeção (compactas)
+  const projRowsPdf = [];
+  for (let ano=1; ano<=prazoMax; ano++) {
+    const irA = aliquotaIR(ano);
+    let vBruto=0, vLiq=0;
+    rows.forEach(r => {
+      const p   = (parseFloat(r.pct)||0)/100;
+      const va  = valorCart*p;
+      const tb  = taxaBruta(r,cdi,ipca);
+      const br  = va*Math.pow(1+tb,ano);
+      vBruto   += br;
+      vLiq     += br - (r.isento ? 0 : (br-va)*irA);
+    });
+    const rLiq    = vLiq-valorCart;
+    const vCDI    = valorCart*Math.pow(1+cdi,ano);
+    const vCDILiq = vCDI-(vCDI-valorCart)*irA;
+    const alphaCDI= vLiq-vCDILiq;
+    const vBch    = valorCart*Math.pow(1+benchRate,ano);
+    const vBchLiq = vBch-(vBch-valorCart)*irA;
+    const alphaB  = vLiq-vBchLiq;
+    const bg      = ano%2===0 ? '#FDF4EE' : '#fff';
+    projRowsPdf.push(`<tr style="background:${bg}">
+      ${TD(ano+' ano'+(ano>1?'s':''), 'left', true, '#221B19')}
+      ${TD('R$ '+fmt(vLiq),'right')}
+      ${TD(pct2(rLiq/valorCart),'center',true,'#2D7A5F')}
+      ${TD('R$ '+fmt(vCDILiq),'right',false,'inherit','rgba(45,74,62,0.07)')}
+      ${TD(pct2((vCDILiq-valorCart)/valorCart),'center',false,'#555','rgba(45,74,62,0.07)')}
+      ${TD((alphaCDI>=0?'+ ':'− ')+'R$ '+fmt(Math.abs(alphaCDI)),'right',true,alphaCDI>=0?'#2D7A5F':'#AC3631','rgba(45,74,62,0.07)')}
+      ${TD('R$ '+fmt(vBchLiq),'right')}
+      ${TD(pct2((vBchLiq-valorCart)/valorCart),'center',false,'#555')}
+      ${TD((alphaB>=0?'+ ':'− ')+'R$ '+fmt(Math.abs(alphaB)),'right',true,alphaB>=0?'#2D7A5F':'#AC3631')}
+    </tr>`);
+  }
+
+  const html = `<div style="font-family:Helvetica,Arial,sans-serif;font-size:8px;color:#3D3530;background:#FFF8F3;width:1060px;padding:0;box-sizing:border-box">
+
+  <!-- HEADER ─────────────────────────────────────────── -->
+  <div style="background:#221B19;padding:10px 16px 8px;color:#fff;display:flex;justify-content:space-between;align-items:center">
+    <div>
+      <span style="font-family:'Times New Roman',serif;font-size:17px;font-weight:700;letter-spacing:.4px">SVN <span style="color:#CFE3DA">Investimentos</span> | XP</span>
+      <span style="font-size:9px;color:#B5A9A4;margin-left:14px">Proposta de Carteira Sugerida</span>
+    </div>
+    <div style="text-align:right;font-size:8px;color:#B5A9A4">
+      ${dataHoje} &nbsp;|&nbsp; Assessor: <strong style="color:#CFE3DA">${nomeAssessor}</strong>
+    </div>
+  </div>
+  <div style="background:#3D3530;padding:5px 16px;display:flex;gap:20px;align-items:center;flex-wrap:wrap">
+    <span style="color:#fff;font-size:10px;font-family:'Times New Roman',serif"><strong>${nomeCliente}</strong></span>
+    <span style="color:#B5A9A4">|</span>
+    <span style="color:#CFE3DA">Volume: <strong>R$ ${fmt(valorCart)}</strong></span>
+    <span style="color:#B5A9A4">|</span>
+    <span style="color:#B5A9A4">CDI: <strong style="color:#fff">${pct2(cdi)}</strong></span>
+    <span style="color:#B5A9A4">IPCA: <strong style="color:#fff">${pct2(ipca)}</strong></span>
+    <span style="color:#B5A9A4">Benchmark: <strong style="color:#fff">${bLabel} = ${pct2(benchRate)}</strong></span>
+    <span style="color:#B5A9A4">IR gross-up: <strong style="color:#fff">${irPctFmt}</strong></span>
+    <span style="color:#B5A9A4">|</span>
+    <span style="color:#B5A9A4">Prazo: <strong style="color:#fff">${prazoMax} ano${prazoMax>1?'s':''}</strong></span>
+  </div>
+
+  <!-- COMPOSIÇÃO ─────────────────────────────────────── -->
+  ${SEC('Composição da Carteira')}
+  <table style="width:100%;border-collapse:collapse;background:#fff">
+    <thead><tr style="color:#fff">
+      ${TH('Tipo')} ${TH('Emissor')} ${TH('Carência','center')} ${TH('Taxa','center')}
+      ${TH('% Cart.','center')} ${TH('Valor (R$)','right')} ${TH('Tx Bruta','center')}
+      ${TH('Gross-up *','center')}
+    </tr></thead>
+    <tbody>${rowsHtmlPdf}</tbody>
+    <tfoot><tr style="background:#221B19;color:#fff">
+      <td colspan="4" style="padding:4px 6px;font-size:8px;font-weight:700;text-align:right">TOTAL</td>
+      <td style="padding:4px 6px;font-size:9px;font-weight:700;text-align:center">${totalPct.toFixed(1)}%</td>
+      <td style="padding:4px 6px;font-size:9px;font-weight:700;text-align:right">R$ ${fmt(valorCart*totalPct/100)}</td>
+      <td style="padding:4px 6px;font-size:9px;font-weight:700;text-align:center;color:#CFE3DA">${pct2(wBruta)}</td>
+      <td style="padding:4px 6px;font-size:9px;font-weight:700;text-align:center;color:#CFE3DA">${pct2(wGrossup)}</td>
+    </tr></tfoot>
+  </table>
+
+  <!-- RESUMO ─────────────────────────────────────────── -->
+  ${SEC('Resumo — Retorno da Carteira')}
+  <table style="width:100%;border-collapse:collapse;background:#fff">
+    <tr>
+      <td style="padding:5px 10px;border:1px solid #E8DDD8;width:16.6%">
+        <div style="font-size:7px;color:#B5A9A4;text-transform:uppercase">Tx Bruta Pond.</div>
+        <div style="font-size:13px;font-weight:700;font-family:'Times New Roman',serif;color:#2D7A5F">${pct2(wBruta)}</div>
+      </td>
+      <td style="padding:5px 10px;border:1px solid #E8DDD8;width:16.6%">
+        <div style="font-size:7px;color:#B5A9A4;text-transform:uppercase">Tx Líquida Pond.</div>
+        <div style="font-size:13px;font-weight:700;font-family:'Times New Roman',serif;color:#8FBCB0">${pct2(wLiq)}</div>
+      </td>
+      <td style="padding:5px 10px;border:1px solid #E8DDD8;width:16.6%">
+        <div style="font-size:7px;color:#B5A9A4;text-transform:uppercase">Gross-up Pond.</div>
+        <div style="font-size:13px;font-weight:700;font-family:'Times New Roman',serif;color:#AC3631">${pct2(wGrossup)}</div>
+      </td>
+      <td style="padding:5px 10px;border:1px solid #E8DDD8;width:16.6%">
+        <div style="font-size:7px;color:#B5A9A4;text-transform:uppercase">% CDI Equiv.</div>
+        <div style="font-size:13px;font-weight:700;font-family:'Times New Roman',serif;color:#221B19">${pct2(pctCdiEq)}</div>
+      </td>
+      <td style="padding:5px 10px;border:1px solid #E8DDD8;width:16.6%;background:#FDF4EE">
+        <div style="font-size:7px;color:#B5A9A4;text-transform:uppercase">Benchmark (${bLabel})</div>
+        <div style="font-size:13px;font-weight:700;font-family:'Times New Roman',serif;color:#3D3530">${pct2(benchRate)}</div>
+      </td>
+      <td style="padding:5px 10px;border:1px solid #E8DDD8;width:16.6%;background:${alpha>=0?'#F0FAF5':'#FFF0EF'}">
+        <div style="font-size:7px;color:#B5A9A4;text-transform:uppercase">Alpha vs Benchmark</div>
+        <div style="font-size:13px;font-weight:700;font-family:'Times New Roman',serif;color:${alpha>=0?'#2D7A5F':'#AC3631'}">${pct2(alpha)}</div>
+      </td>
+    </tr>
+  </table>
+
+  <!-- PROJEÇÃO ────────────────────────────────────────── -->
+  ${SEC('Projeção de Rendimento — '+prazoMax+' ano'+(prazoMax>1?'s':''))}
+  <table style="width:100%;border-collapse:collapse;background:#fff">
+    <thead><tr style="color:#fff">
+      ${TH('Período')}
+      ${TH('Carteira Líq. (R$)','right')}
+      ${TH('Rend. Líq. (%)','center')}
+      ${TH('100% CDI Líq. (R$)','right','#2D4A3E')}
+      ${TH('CDI Rend. (%)','center','#2D4A3E')}
+      ${TH('Alpha CDI (R$)','right','#2D4A3E')}
+      ${TH(bLabel+' Líq. (R$)','right')}
+      ${TH(bLabel+' Rend. (%)','center')}
+      ${TH('Alpha '+bLabel+' (R$)','right')}
+    </tr></thead>
+    <tbody>${projRowsPdf.join('')}</tbody>
+  </table>
+
+  <!-- DISCLAIMER ──────────────────────────────────────── -->
+  <div style="margin-top:6px;padding:5px 8px;border-top:1px solid #E8DDD8;font-size:7px;color:#B5A9A4;line-height:1.5">
+    <strong style="color:#3D3530">Aviso Legal:</strong> Material informativo. Projeções são estimativas de taxa constante e não constituem garantia de rentabilidade. IR: 17,5% (1º ano) e 15% (2º ano em diante). [I] = isento de IR. * Gross-up = taxa_isenta ÷ (1−IR%). | SVN Investimentos — AAI XP Inc. | Assessor: ${nomeAssessor}
+  </div>
+</div>`;
+
+  // ── Renderiza e gera o PDF ────────────────────────────
+  const container = document.createElement('div');
+  container.style.cssText = 'position:fixed;left:-10000px;top:0';
+  container.innerHTML = html;
+  document.body.appendChild(container);
+
+  const filename = `Proposta_${nomeCliente.replace(/\s+/g,'_')}_${new Date().toISOString().slice(0,10)}.pdf`;
+
+  html2pdf().set({
+    margin:      [6, 6, 6, 6],
+    filename:    filename,
+    image:       { type: 'jpeg', quality: 0.95 },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#FFF8F3', width: 1060 },
+    jsPDF:       { unit: 'mm', format: 'a4', orientation: 'landscape' },
+    pagebreak:   { mode: 'avoid-all' },
+  }).from(container).save().then(() => {
+    document.body.removeChild(container);
+    btn.classList.remove('loading');
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:15px;height:15px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 18 15 15"/></svg> Gerar PDF para Cliente`;
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  FORMAT HELPERS
+// ═══════════════════════════════════════════════════════════════
+function fmt(v) {
+  return (v || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function fmtK(v) {
+  if (v >= 1e6) return (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v/1e3).toFixed(0) + 'K';
+  return v.toFixed(0);
+}
+function pct2(v) {
+  return ((v||0)*100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  // Date
+  document.getElementById('dateTag').innerHTML =
+    new Date().toLocaleDateString('pt-BR', { day:'2-digit', month:'long', year:'numeric' }) +
+    '<br>Uso interno — SVN Investimentos';
+
+  // Seed with example portfolio from spreadsheet
+  addRow('PRE',   'DEB 14,80%',             '-',   'pre',       '14.8',  '65');
+  addRow('CDB',   'CDB Banco Digimais',      'D+0', 'pct_cdi',  '121',   '10');
+  addRow('LCA',   'LCA XP 202401',           '-',   'pct_cdi',  '95',    '15', true);
+  addRow('CRA',   'CRA BTG',                 '-',   'pct_cdi',  '109',   '5');
+  addRow('Fundo', 'SVN FIRF CP RL',          'D+6', 'pct_cdi',  '115',   '5');
+});
+</script>
+</body>
+</html>
