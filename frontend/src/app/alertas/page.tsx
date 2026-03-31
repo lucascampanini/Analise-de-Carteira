@@ -108,7 +108,7 @@ export default function AlertasPage() {
             })()}
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
             {vencimentosRF.map((p, i) => {
               const urgente  = p.dias_para_venc <= 7;
               const atencao  = p.dias_para_venc <= 15;
@@ -151,7 +151,7 @@ export default function AlertasPage() {
             Nenhuma tarefa agendada. Use o botão 📝 em qualquer cliente para criar uma.
           </div>
         ) : (
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
             {tarefas.map((e: any) => {
               const urgente = e.dias_para_evento <= 3;
               return (
@@ -185,7 +185,7 @@ export default function AlertasPage() {
       {outrosAlertas.length > 0 && (
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-slate-700 uppercase tracking-wide">📌 Outros alertas</h2>
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
             {outrosAlertas.map((e: any) => (
               <div key={e.id} className="px-5 py-3 flex items-center justify-between gap-4">
                 <div className="flex-1 min-w-0">
