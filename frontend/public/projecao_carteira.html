@@ -1269,7 +1269,8 @@ function gerarPDF(btn) {
 
   // ── Renderiza e gera o PDF ────────────────────────────
   const container = document.createElement('div');
-  container.style.cssText = 'position:fixed;left:-10000px;top:0';
+  // position:absolute visível (opacity quase 0) — html2canvas não captura fixed fora do viewport
+  container.style.cssText = 'position:absolute;top:0;left:0;width:1060px;opacity:0.01;pointer-events:none;z-index:-1';
   container.innerHTML = html;
   document.body.appendChild(container);
 
@@ -1279,7 +1280,7 @@ function gerarPDF(btn) {
     margin:      [6, 6, 6, 6],
     filename:    filename,
     image:       { type: 'jpeg', quality: 0.95 },
-    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#FFF8F3', width: 1060 },
+    html2canvas: { scale: 2, useCORS: true, backgroundColor: '#FFF8F3', width: 1060, scrollX: 0, scrollY: 0, logging: false },
     jsPDF:       { unit: 'mm', format: 'a4', orientation: 'landscape' },
     pagebreak:   { mode: 'avoid-all' },
   }).from(container).save().then(() => {
