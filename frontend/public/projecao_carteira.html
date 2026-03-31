@@ -1091,8 +1091,23 @@ function gerarPDF(btn) {
     </tr>`);
   }
 
-  // Captura gráfico como imagem
-  const chartImg = chartInstance ? chartInstance.toBase64Image('image/png', 1) : null;
+  // Captura gráfico — canvas com fundo branco explícito
+  let chartImg = null;
+  const canvasEl = document.getElementById('chartEvolucao');
+  if (canvasEl && canvasEl.width > 0 && canvasEl.height > 0) {
+    try {
+      const tmp = document.createElement('canvas');
+      tmp.width  = canvasEl.width;
+      tmp.height = canvasEl.height;
+      const tctx = tmp.getContext('2d');
+      tctx.fillStyle = '#ffffff';
+      tctx.fillRect(0, 0, tmp.width, tmp.height);
+      tctx.drawImage(canvasEl, 0, 0);
+      chartImg = tmp.toDataURL('image/png');
+    } catch(e) {
+      chartImg = canvasEl.toDataURL('image/png');
+    }
+  }
   const chartSection = chartImg
     ? `<div style="margin-top:28px">
         <div style="background:#221B19;color:#fff;padding:8px 12px;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;border-radius:4px 4px 0 0">Evolução do Patrimônio</div>
