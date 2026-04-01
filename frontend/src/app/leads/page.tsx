@@ -86,8 +86,25 @@ export default function LeadsPage() {
       const buf  = await file.arrayBuffer();
       const wb   = XLSX.read(buf, { type: "array" });
       const ws   = wb.Sheets[wb.SheetNames[0]];
+      // header:1 para normalizar nomes de colunas independente de maiúsculas
       const rows = XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
-      const lista = rows
+
+      // Normaliza chaves das linhas para minúsculas sem acento
+      const norm = (s: string) => s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const normRows = rows.map((r: any) =>
+        Object.fromEntries(Object.entries(r).map(([k, v]) => [norm(k), v]))
+      );
+
+      // Mapeia variações de estágio para os 4 valores válidos
+      const normEstagio = (v: string): string => {
+        const s = v.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+        if (s.startsWith("CONTATO") || s.startsWith("CONTAT")) return "CONTATO";
+        if (s.startsWith("PROPOSTA") || s.startsWith("PROPOST")) return "PROPOSTA";
+        if (s.startsWith("CLIENTE") || s === "FECHADO" || s === "GANHO") return "CLIENTE";
+        return "PROSPECTO"; // default: PROSPECT, LEAD, NOVO, PROSPECTO, etc.
+      };
+
+      const lista = normRows
         .filter((r: any) => r.nome)
         .map((r: any) => ({
           nome:            String(r.nome || "").trim(),
@@ -95,10 +112,15 @@ export default function LeadsPage() {
           email:           String(r.email || "").trim(),
           origem:          String(r.origem || "OUTRO").trim().toUpperCase(),
           valor_potencial: parseFloat(String(r.valor_potencial || "0")) || null,
-          estagio:         String(r.estagio || "PROSPECTO").trim().toUpperCase(),
+          estagio:         normEstagio(String(r.estagio || "PROSPECTO")),
         }));
+
+      if (lista.length === 0) {
+        setMsgImport("Nenhum lead encontrado. Verifique se a coluna 'nome' existe no arquivo.");
+        return;
+      }
       const n = await importarLeads(user.uid, lista);
-      setMsgImport(`${n} leads importados!`);
+      setMsgImport(`${n} lead${n !== 1 ? "s" : ""} importado${n !== 1 ? "s" : ""}!`);
       load();
     } catch (err: any) {
       setMsgImport(`Erro: ${err.message}`);
