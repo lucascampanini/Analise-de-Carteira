@@ -44,14 +44,14 @@ export async function importarClientes(uid: string, clientes: any[]) {
 // ANOTAÇÕES
 // ──────────────────────────────────────────────
 export async function getAnotacoes(uid: string, conta: string) {
-  // where sem orderBy — usa índice single-field automático, sem precisar de índice composto
-  const q = query(col(uid, "anotacoes"), where("codigo_conta", "==", conta));
-  const snap = await getDocs(q);
-  return snap2arr(snap).sort((a: any, b: any) => {
-    const ta = a.criado_em?.seconds ?? 0;
-    const tb = b.criado_em?.seconds ?? 0;
-    return tb - ta;
-  });
+  const snap = await getDocs(col(uid, "anotacoes"));
+  return snap2arr(snap)
+    .filter((a: any) => a.codigo_conta === conta)
+    .sort((a: any, b: any) => {
+      const ta = a.criado_em?.seconds ?? 0;
+      const tb = b.criado_em?.seconds ?? 0;
+      return tb - ta;
+    });
 }
 
 export async function addAnotacao(uid: string, conta: string, tipo: string, texto: string) {
@@ -71,13 +71,11 @@ export async function deleteAnotacao(uid: string, id: string) {
 // EVENTOS / TAREFAS
 // ──────────────────────────────────────────────
 export async function getEventosProximos(uid: string, dias = 90) {
-  // where sem orderBy — usa índice single-field automático, sem precisar de índice composto
-  const q = query(col(uid, "eventos"), where("concluido", "==", false));
-  const snap = await getDocs(q);
+  const snap = await getDocs(col(uid, "eventos"));
   const limite = new Date();
   limite.setDate(limite.getDate() + dias);
   return snap2arr(snap)
-    .filter((e: any) => new Date(e.data_evento) <= limite)
+    .filter((e: any) => !e.concluido && new Date(e.data_evento) <= limite)
     .sort((a: any, b: any) =>
       new Date(a.data_evento).getTime() - new Date(b.data_evento).getTime()
     )
@@ -107,19 +105,20 @@ export async function deleteEvento(uid: string, id: string) {
 // REUNIÕES
 // ──────────────────────────────────────────────
 export async function getReunioes(uid: string, dias = 30) {
-  // Range query no servidor — data_hora já serve como índice (single-field, sem composite)
+  const snap = await getDocs(col(uid, "reunioes"));
   const agora = new Date().toISOString();
   const limite = new Date();
   limite.setDate(limite.getDate() + dias);
-  const q = query(
-    col(uid, "reunioes"),
-    where("data_hora", ">=", agora),
-    where("data_hora", "<=", limite.toISOString()),
-    orderBy("data_hora"),
-  );
-  const snap = await getDocs(q);
-  // Só filtra status no cliente (poucos docs depois do range)
-  return snap2arr(snap).filter((r: any) => r.status !== "CANCELADA");
+  return snap2arr(snap)
+    .filter(
+      (r: any) =>
+        r.status !== "CANCELADA" &&
+        r.data_hora >= agora &&
+        new Date(r.data_hora) <= limite
+    )
+    .sort((a: any, b: any) =>
+      new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime()
+    );
 }
 
 export async function addReuniao(uid: string, data: any) {
