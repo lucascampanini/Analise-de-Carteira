@@ -44,14 +44,14 @@ export async function importarClientes(uid: string, clientes: any[]) {
 // ANOTAÇÕES
 // ──────────────────────────────────────────────
 export async function getAnotacoes(uid: string, conta: string) {
-  const snap = await getDocs(col(uid, "anotacoes"));
-  return snap2arr(snap)
-    .filter((a: any) => a.codigo_conta === conta)
-    .sort((a: any, b: any) => {
-      const ta = a.criado_em?.seconds ?? 0;
-      const tb = b.criado_em?.seconds ?? 0;
-      return tb - ta;
-    });
+  // where sem orderBy — usa índice single-field automático, sem precisar de índice composto
+  const q = query(col(uid, "anotacoes"), where("codigo_conta", "==", conta));
+  const snap = await getDocs(q);
+  return snap2arr(snap).sort((a: any, b: any) => {
+    const ta = a.criado_em?.seconds ?? 0;
+    const tb = b.criado_em?.seconds ?? 0;
+    return tb - ta;
+  });
 }
 
 export async function addAnotacao(uid: string, conta: string, tipo: string, texto: string) {
@@ -71,11 +71,13 @@ export async function deleteAnotacao(uid: string, id: string) {
 // EVENTOS / TAREFAS
 // ──────────────────────────────────────────────
 export async function getEventosProximos(uid: string, dias = 90) {
-  const snap = await getDocs(col(uid, "eventos"));
+  // where sem orderBy — usa índice single-field automático, sem precisar de índice composto
+  const q = query(col(uid, "eventos"), where("concluido", "==", false));
+  const snap = await getDocs(q);
   const limite = new Date();
   limite.setDate(limite.getDate() + dias);
   return snap2arr(snap)
-    .filter((e: any) => !e.concluido && new Date(e.data_evento) <= limite)
+    .filter((e: any) => new Date(e.data_evento) <= limite)
     .sort((a: any, b: any) =>
       new Date(a.data_evento).getTime() - new Date(b.data_evento).getTime()
     )
@@ -105,20 +107,19 @@ export async function deleteEvento(uid: string, id: string) {
 // REUNIÕES
 // ──────────────────────────────────────────────
 export async function getReunioes(uid: string, dias = 30) {
-  const snap = await getDocs(col(uid, "reunioes"));
+  // Range query no servidor — data_hora já serve como índice (single-field, sem composite)
   const agora = new Date().toISOString();
   const limite = new Date();
   limite.setDate(limite.getDate() + dias);
-  return snap2arr(snap)
-    .filter(
-      (r: any) =>
-        r.status !== "CANCELADA" &&
-        r.data_hora >= agora &&
-        new Date(r.data_hora) <= limite
-    )
-    .sort((a: any, b: any) =>
-      new Date(a.data_hora).getTime() - new Date(b.data_hora).getTime()
-    );
+  const q = query(
+    col(uid, "reunioes"),
+    where("data_hora", ">=", agora),
+    where("data_hora", "<=", limite.toISOString()),
+    orderBy("data_hora"),
+  );
+  const snap = await getDocs(q);
+  // Só filtra status no cliente (poucos docs depois do range)
+  return snap2arr(snap).filter((r: any) => r.status !== "CANCELADA");
 }
 
 export async function addReuniao(uid: string, data: any) {
@@ -164,8 +165,15 @@ export async function deleteLead(uid: string, id: string) {
 }
 
 export async function importarLeads(uid: string, leads: any[]) {
-  for (const l of leads) {
-    await addDoc(col(uid, "leads"), { ...l, criado_em: serverTimestamp() });
+  // writeBatch em vez de loop sequencial — N requests → ceil(N/400) requests
+  const now = serverTimestamp();
+  for (let i = 0; i < leads.length; i += 400) {
+    const b = writeBatch(db);
+    leads.slice(i, i + 400).forEach((l) => {
+      const ref = doc(col(uid, "leads")); // auto-ID
+      b.set(ref, { ...l, criado_em: now });
+    });
+    await b.commit();
   }
   return leads.length;
 }
@@ -207,8 +215,9 @@ export async function getAllClientesOfertas(uid: string) {
 }
 
 export async function getClientesOferta(uid: string, ofertaId: string) {
-  const snap = await getDocs(col(uid, "oferta_clientes"));
-  return snap2arr(snap).filter((x: any) => x.oferta_id === ofertaId);
+  const q = query(col(uid, "oferta_clientes"), where("oferta_id", "==", ofertaId));
+  const snap = await getDocs(q);
+  return snap2arr(snap);
 }
 
 export async function addClienteOferta(uid: string, data: any) {
@@ -361,6 +370,14 @@ export async function setSupernovaConfig(uid: string, config: any) {
 }
 
 export async function deletarPosicoesCliente(uid: string, conta: string) {
+  // Novo formato: 1 doc por cliente, ID = codigo_conta — delete direto, sem scan
+  const ref = doc(col(uid, "posicoes"), conta);
+  const snap = await getDoc(ref);
+  if (snap.exists()) {
+    await deleteDoc(ref);
+    return;
+  }
+  // Fallback: formato antigo com 1 doc por posição
   const existing = await getDocs(col(uid, "posicoes"));
   const doConta = existing.docs.filter((d) => d.data().codigo_conta === conta);
   for (let i = 0; i < doConta.length; i += 400) {
