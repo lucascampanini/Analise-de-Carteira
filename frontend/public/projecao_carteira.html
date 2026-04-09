@@ -403,18 +403,34 @@
         <input type="number" id="valorCarteira" value="1000000" step="1000" min="0" onchange="recalc()" />
       </div>
       <div class="param-card">
-        <label>Prazo Máximo de Projeção</label>
+        <label>Prazo Total da Projeção</label>
         <select id="prazoMax" onchange="recalc()">
-          <option value="3">3 anos</option>
-          <option value="5" selected>5 anos</option>
-          <option value="7">7 anos</option>
-          <option value="10">10 anos</option>
+          <option value="6">6 meses</option>
+          <option value="12">12 meses (1 ano)</option>
+          <option value="18">18 meses</option>
+          <option value="24">24 meses (2 anos)</option>
+          <option value="30">30 meses</option>
+          <option value="36">36 meses (3 anos)</option>
+          <option value="48">48 meses (4 anos)</option>
+          <option value="60" selected>60 meses (5 anos)</option>
+          <option value="84">84 meses (7 anos)</option>
+          <option value="120">120 meses (10 anos)</option>
+        </select>
+      </div>
+      <div class="param-card">
+        <label>Intervalo de Projeção</label>
+        <select id="passo" onchange="recalc()">
+          <option value="1">Mensal</option>
+          <option value="3">Trimestral</option>
+          <option value="6">Semestral</option>
+          <option value="12" selected>Anual</option>
         </select>
       </div>
       <div class="param-card">
         <label>Benchmark Principal</label>
         <select id="benchmark" onchange="recalc()">
           <option value="cdi100">100% CDI</option>
+          <option value="cdi106">106% CDI</option>
           <option value="ipca6" selected>IPCA+6%</option>
           <option value="ipca5">IPCA+5%</option>
           <option value="pre15">PRE 15%</option>
@@ -612,6 +628,7 @@ function pctCDI(taxa, cdi) {
 function benchmarkRate(cdi, ipca) {
   const sel = document.getElementById('benchmark').value;
   if (sel === 'cdi100') return cdi;
+  if (sel === 'cdi106') return cdi * 1.06;
   if (sel === 'ipca6')  return (1 + ipca) * (1.06) - 1;
   if (sel === 'ipca5')  return (1 + ipca) * (1.05) - 1;
   if (sel === 'pre15')  return 0.15;
@@ -620,8 +637,16 @@ function benchmarkRate(cdi, ipca) {
 
 function benchmarkLabel() {
   const sel = document.getElementById('benchmark').value;
-  const labels = { cdi100:'100% CDI', ipca6:'IPCA+6%', ipca5:'IPCA+5%', pre15:'PRE 15%' };
+  const labels = { cdi100:'100% CDI', cdi106:'106% CDI', ipca6:'IPCA+6%', ipca5:'IPCA+5%', pre15:'PRE 15%' };
   return labels[sel] || sel;
+}
+
+function fmtPeriodo(mes) {
+  const a = Math.floor(mes / 12);
+  const m = mes % 12;
+  if (a === 0) return m + (m === 1 ? ' mês' : ' meses');
+  if (m === 0) return a + ' ano' + (a > 1 ? 's' : '');
+  return a + ' ano' + (a > 1 ? 's' : '') + ' e ' + m + (m === 1 ? ' mês' : ' meses');
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -771,7 +796,8 @@ function recalc() {
   const ipca = parseFloat(document.getElementById('ipca').value) / 100 || 0.0548;
   const irRef = parseFloat(document.getElementById('irGrossup').value) || 0.15;
   const valorCarteira = parseFloat(document.getElementById('valorCarteira').value) || 0;
-  const prazoMax = parseInt(document.getElementById('prazoMax').value) || 5;
+  const prazoMeses = parseInt(document.getElementById('prazoMax').value) || 60;
+  const passo      = parseInt(document.getElementById('passo').value) || 12;
   const benchRate = benchmarkRate(cdi, ipca);
   const bLabel = benchmarkLabel();
 
@@ -825,9 +851,10 @@ function recalc() {
   const dataBench  = [valorCarteira];
   const dataCDI    = [valorCarteira];
 
-  for (let ano = 1; ano <= prazoMax; ano++) {
-    const dias = ano * 365;
-    const irAnual = aliquotaIR(ano);
+  for (let mes = passo; mes <= prazoMeses; mes += passo) {
+    const anos    = mes / 12;
+    const irAnual = aliquotaIR(anos);
+    const periodoLabel = fmtPeriodo(mes);
 
     // Carteira: projeção por ativo
     let valorBruto = 0, valorLiq = 0;
@@ -835,7 +862,7 @@ function recalc() {
       const pct  = (parseFloat(r.pct) || 0) / 100;
       const va   = valorCarteira * pct;
       const tb   = taxaBruta(r, cdi, ipca);
-      const bruto = va * Math.pow(1 + tb, ano);
+      const bruto = va * Math.pow(1 + tb, anos);
       const rend  = bruto - va;
       const irPag = r.isento ? 0 : rend * irAnual;
       valorBruto += bruto;
@@ -845,20 +872,19 @@ function recalc() {
     const rendBruto = valorBruto - valorCarteira;
     const rendLiq   = valorLiq - valorCarteira;
     const irEstimado = valorBruto - valorLiq;
-    const valorBench = valorCarteira * Math.pow(1 + benchRate, ano);
-    // Bench é tributável a 15% (assumindo ativo sem isenção)
+    const valorBench = valorCarteira * Math.pow(1 + benchRate, anos);
     const benchIR = (valorBench - valorCarteira) * irAnual;
     const valorBenchLiq = valorBench - benchIR;
     const rendBenchPct = (valorBenchLiq - valorCarteira) / valorCarteira;
-    // CDI como segundo benchmark (100% CDI líquido)
-    const valorCDI    = valorCarteira * Math.pow(1 + cdi, ano);
+    // CDI como segundo benchmark fixo (100% CDI líquido)
+    const valorCDI    = valorCarteira * Math.pow(1 + cdi, anos);
     const valorCDILiq = valorCDI - (valorCDI - valorCarteira) * irAnual;
     const rendCDIPct  = (valorCDILiq - valorCarteira) / valorCarteira;
     const alphaCDI    = valorLiq - valorCDILiq;
 
     const alpha_r = valorLiq - valorBenchLiq;
 
-    labels.push(`${ano} ano${ano>1?'s':''}`);
+    labels.push(periodoLabel);
     dataBruta.push(valorBruto);
     dataLiq.push(valorLiq);
     dataBench.push(valorBenchLiq);
@@ -866,7 +892,7 @@ function recalc() {
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
-      <td>${ano} ano${ano>1?'s':''}</td>
+      <td>${periodoLabel}</td>
       <td>R$ ${fmt(valorBruto)}</td>
       <td class="pos">+ R$ ${fmt(rendBruto)}</td>
       <td style="color:var(--ruby)">– R$ ${fmt(irEstimado)}</td>
@@ -999,7 +1025,8 @@ function gerarPDF(btn) {
   const ipca         = parseFloat(document.getElementById('ipca').value) / 100 || 0.0548;
   const irRef        = parseFloat(document.getElementById('irGrossup').value) || 0.15;
   const valorCart    = parseFloat(document.getElementById('valorCarteira').value) || 0;
-  const prazoMax     = parseInt(document.getElementById('prazoMax').value) || 5;
+  const prazoMeses   = parseInt(document.getElementById('prazoMax').value) || 60;
+  const passo        = parseInt(document.getElementById('passo').value) || 12;
   const bLabel       = benchmarkLabel();
   const benchRate    = benchmarkRate(cdi, ipca);
   const nomeCliente  = document.getElementById('nomeCliente').value || 'Cliente';
@@ -1053,43 +1080,8 @@ function gerarPDF(btn) {
     </tr>`;
   }).join('');
 
-  // Projeção
+  // Projeção (loop unificado, usado apenas para referência interna)
   const projRows = [];
-  for (let ano=1; ano<=prazoMax; ano++) {
-    const irA = aliquotaIR(ano);
-    let vBruto=0, vLiq=0;
-    rows.forEach(r => {
-      const p = (parseFloat(r.pct)||0)/100;
-      const va = valorCart*p;
-      const tb = taxaBruta(r,cdi,ipca);
-      const bruto = va*Math.pow(1+tb,ano);
-      const irPag = r.isento ? 0 : (bruto-va)*irA;
-      vBruto += bruto; vLiq += bruto-irPag;
-    });
-    const rLiq = vLiq-valorCart;
-    const vCDI = valorCart*Math.pow(1+cdi,ano);
-    const vCDILiq = vCDI-(vCDI-valorCart)*irA;
-    const rCDI = vCDILiq-valorCart;
-    const alphaCDI = vLiq-vCDILiq;
-    const vBench = valorCart*Math.pow(1+benchRate,ano);
-    const vBenchLiq = vBench-(vBench-valorCart)*irA;
-    const rBench = vBenchLiq-valorCart;
-    const alphaR = vLiq-vBenchLiq;
-    const bg = ano%2===0 ? '#FDF4EE' : '#fff';
-    const aCDIColor = alphaCDI>=0 ? '#2D7A5F' : '#AC3631';
-    const aBColor   = alphaR>=0   ? '#2D7A5F' : '#AC3631';
-    projRows.push(`<tr style="background:${bg}">
-      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;font-weight:700;color:#221B19">${ano} ano${ano>1?'s':''}</td>
-      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:right">R$ ${fmt(vLiq)}</td>
-      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:center;color:#2D7A5F;font-weight:700">${pct2(rLiq/valorCart)}</td>
-      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:right;background:rgba(45,74,62,0.06)">R$ ${fmt(vCDILiq)}</td>
-      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:center;background:rgba(45,74,62,0.06)">${pct2(rCDI/valorCart)}</td>
-      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:right;font-weight:700;background:rgba(45,74,62,0.06);color:${aCDIColor}">${alphaCDI>=0?'+':''} R$ ${fmt(alphaCDI)}</td>
-      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:right">R$ ${fmt(vBenchLiq)}</td>
-      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:center;color:#555">${pct2(rBench/valorCart)}</td>
-      <td style="padding:7px 10px;border-bottom:1px solid #E8DDD8;text-align:right;font-weight:700;color:${aBColor}">${alphaR>=0?'+':''} R$ ${fmt(alphaR)}</td>
-    </tr>`);
-  }
 
   // Captura gráfico — canvas com fundo branco explícito
   let chartImg = null;
@@ -1153,27 +1145,29 @@ function gerarPDF(btn) {
 
   // Linhas da projeção (compactas)
   const projRowsPdf = [];
-  for (let ano=1; ano<=prazoMax; ano++) {
-    const irA = aliquotaIR(ano);
+  for (let mes=passo; mes<=prazoMeses; mes+=passo) {
+    const anos    = mes / 12;
+    const irA     = aliquotaIR(anos);
+    const pLabel  = fmtPeriodo(mes);
     let vBruto=0, vLiq=0;
     rows.forEach(r => {
       const p   = (parseFloat(r.pct)||0)/100;
       const va  = valorCart*p;
       const tb  = taxaBruta(r,cdi,ipca);
-      const br  = va*Math.pow(1+tb,ano);
+      const br  = va*Math.pow(1+tb,anos);
       vBruto   += br;
       vLiq     += br - (r.isento ? 0 : (br-va)*irA);
     });
     const rLiq    = vLiq-valorCart;
-    const vCDI    = valorCart*Math.pow(1+cdi,ano);
+    const vCDI    = valorCart*Math.pow(1+cdi,anos);
     const vCDILiq = vCDI-(vCDI-valorCart)*irA;
     const alphaCDI= vLiq-vCDILiq;
-    const vBch    = valorCart*Math.pow(1+benchRate,ano);
+    const vBch    = valorCart*Math.pow(1+benchRate,anos);
     const vBchLiq = vBch-(vBch-valorCart)*irA;
     const alphaB  = vLiq-vBchLiq;
-    const bg      = ano%2===0 ? '#FDF4EE' : '#fff';
+    const bg      = (mes/passo)%2===0 ? '#FDF4EE' : '#fff';
     projRowsPdf.push(`<tr style="background:${bg}">
-      ${TD(ano+' ano'+(ano>1?'s':''), 'left', true, '#221B19')}
+      ${TD(pLabel, 'left', true, '#221B19')}
       ${TD('R$ '+fmt(vLiq),'right')}
       ${TD(pct2(rLiq/valorCart),'center',true,'#2D7A5F')}
       ${TD('R$ '+fmt(vCDILiq),'right',false,'inherit','rgba(45,74,62,0.07)')}
@@ -1206,7 +1200,7 @@ function gerarPDF(btn) {
     <span style="color:#B5A9A4">Benchmark: <strong style="color:#fff">${bLabel} = ${pct2(benchRate)}</strong></span>
     <span style="color:#B5A9A4">IR gross-up: <strong style="color:#fff">${irPctFmt}</strong></span>
     <span style="color:#B5A9A4">|</span>
-    <span style="color:#B5A9A4">Prazo: <strong style="color:#fff">${prazoMax} ano${prazoMax>1?'s':''}</strong></span>
+    <span style="color:#B5A9A4">Prazo: <strong style="color:#fff">${fmtPeriodo(prazoMeses)}</strong></span>
   </div>
 
   <!-- COMPOSIÇÃO ─────────────────────────────────────── -->
@@ -1259,7 +1253,7 @@ function gerarPDF(btn) {
   </table>
 
   <!-- PROJEÇÃO ────────────────────────────────────────── -->
-  ${SEC('Projeção de Rendimento — '+prazoMax+' ano'+(prazoMax>1?'s':''))}
+  ${SEC('Projeção de Rendimento — '+fmtPeriodo(prazoMeses))}
   <table style="width:100%;border-collapse:collapse;background:#fff">
     <thead><tr style="color:#fff">
       ${TH('Período')}
