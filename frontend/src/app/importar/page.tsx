@@ -101,7 +101,7 @@ async function parsearClientes(fileRelatorio: File, filePositivador: File) {
     const conta = String(r[colContaP] || "").trim();
     if (!conta) continue;
     const nome = nomesPorConta.get(conta) || "";
-    if (!nome) { semNomeNoSaldo++; }
+    if (!nome) { semNomeNoSaldo++; continue; }  // pula: Firestore exige nome
     clts.push({
       codigo_conta:    conta,
       nome,
@@ -372,7 +372,7 @@ export default function ImportarPage() {
       const { clts, semNomeNoSaldo, debug } = await parsearClientes(fileRel, filePos);
       const n = await importarClientes(user.uid, clts);
       const semNomeMsg = semNomeNoSaldo > 0
-        ? ` · ${semNomeNoSaldo} sem nome no Rel. Saldo`
+        ? ` · ${semNomeNoSaldo} ignorados (sem nome no Saldo)`
         : "";
       const perfilMsg = debug.colSuit ? ` · perfil OK ("${debug.colSuit}")` : " · perfil: não encontrado";
       const netMsg = debug.colNet ? ` · net OK ("${debug.colNet}")` : " · NET: coluna não encontrada!";
