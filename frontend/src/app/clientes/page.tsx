@@ -43,12 +43,15 @@ function calcularAniversario(dataNasc: string | null) {
   return { data: aniv, dias };
 }
 
+const norm = (s: string) =>
+  s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "");
+
 function mapearColuna(headers: string[], ...opcoes: string[]) {
-  return headers.find((h) =>
-    opcoes.some((o) =>
-      h.toLowerCase().replace(/[^a-z0-9]/g, "").includes(o.toLowerCase().replace(/[^a-z0-9]/g, ""))
-    )
-  );
+  return headers.find((h) => opcoes.some((o) => norm(h).includes(norm(o))));
+}
+
+function mapearColunaExata(headers: string[], ...opcoes: string[]) {
+  return headers.find((h) => opcoes.some((o) => norm(h) === norm(o)));
 }
 
 // ── Perfil do cliente (inline) ──────────────────────────────────────────────
@@ -183,13 +186,17 @@ function ClientesLista({
       if (rowsPos.length === 0) { setMsgImport("Positivador: planilha vazia."); return; }
 
       const hdPos    = Object.keys(rowsPos[0]);
-      // Código do cliente no Positivador pode ser COD_CLIENTE ou Cliente (quando é número)
-      const colContaP = mapearColuna(hdPos, "codcliente", "codigocliente", "conta", "account");
-      const colNet    = mapearColuna(hdPos, "netemm", "netem", "net", "patrimonio", "saldo");
+      console.log("[Positivador] Colunas:", hdPos.join(" | "));
+      // "Cliente" (novo formato XP) ou "COD_CLIENTE" (formato antigo)
+      const colContaP = mapearColunaExata(hdPos, "cliente", "codcliente", "codigocliente", "conta", "account")
+                     || mapearColuna(hdPos, "codcliente", "codigocliente");
+      // "Net Em M" (novo) ou variações antigas — "net" sozinho é muito genérico
+      const colNet    = mapearColunaExata(hdPos, "Net Em M", "VAL_NET_EM_M", "Net em M")
+                     || mapearColuna(hdPos, "netemm", "valnetemm", "patrimonioquido");
       const colSuit   = mapearColuna(hdPos, "suitability", "dscsuitability", "perfil");
-      const colProf   = mapearColuna(hdPos, "profissao", "dscprofissao", "profissão", "ocupacao");
-      const colNasc   = mapearColuna(hdPos, "datanascimento", "datdatanascimento", "nascimento");
-      const colSeg    = mapearColuna(hdPos, "segmento", "dscsegmento");
+      const colProf   = mapearColuna(hdPos, "profissao", "dscprofissao", "ocupacao");
+      const colNasc   = mapearColuna(hdPos, "nascimento", "datanascimento");
+      const colSeg    = mapearColunaExata(hdPos, "Segmento", "DSC_SEGMENTO") || mapearColuna(hdPos, "segmento");
 
       if (!colContaP) { setMsgImport("Positivador: coluna de código não encontrada."); return; }
       if (!colNet)    { setMsgImport("Positivador: coluna de NET não encontrada."); return; }

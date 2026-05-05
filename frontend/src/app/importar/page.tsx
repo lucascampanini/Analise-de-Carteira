@@ -54,6 +54,7 @@ function normalizarData(v: any): string {
 }
 
 async function parsearClientes(fileRelatorio: File, filePositivador: File) {
+  // ── 1. RelatorioSaldoConsolidado → mapa conta → nome ──────────────────────
   const rowsRel = await lerExcel(fileRelatorio);
   if (rowsRel.length === 0) throw new Error("Relatório Saldo: planilha vazia.");
   const hdRel    = Object.keys(rowsRel[0]);
@@ -68,55 +69,52 @@ async function parsearClientes(fileRelatorio: File, filePositivador: File) {
     if (conta) nomesPorConta.set(conta, String(r[colNome] || "").trim());
   }
 
+  // ── 2. Positivador → detectar colunas ────────────────────────────────────
   const rowsPos = await lerExcel(filePositivador);
   if (rowsPos.length === 0) throw new Error("Positivador: planilha vazia.");
-  const hdPos    = Object.keys(rowsPos[0]);
-  const colContaP = mapCol(hdPos, "codcliente", "codigocliente", "conta", "account", "cliente");
-  const colNet    = hdPos[31] || mapCol(hdPos, "netemm", "patrimonio", "saldo"); // AF = índice 31 (32ª coluna Excel)
+  const hdPos     = Object.keys(rowsPos[0]);
+  console.log("[Positivador] Colunas detectadas:", hdPos.join(" | "));
+  // "Cliente" (novo formato) ou "COD_CLIENTE" (formato antigo)
+  const colContaP = mapColExact(hdPos, "cliente", "codcliente", "codigocliente", "conta", "account")
+                 || mapCol(hdPos, "codcliente", "codigocliente");
+  // "Net Em M" (novo) ou "VAL_NET_EM_M" (antigo) — "net" sozinho é muito genérico, evitar
+  const colNet    = mapColExact(hdPos, "Net Em M", "VAL_NET_EM_M", "Net em M", "Net", "NET", "Patrimônio", "Patrimônio Líquido", "PL Total")
+                 || mapCol(hdPos, "netemm", "valnetemm", "patrimonioquido", "pltotal");
   const colSuit   = mapCol(hdPos, "suitability", "dscsuitability", "perfil");
-  const colProf   = mapCol(hdPos, "profissao", "dscprofissao", "profissao", "ocupacao");
-  const colNasc   = mapCol(hdPos, "datanascimento", "datdatanascimento", "nascimento");
-  const colSeg    = mapCol(hdPos, "segmento", "dscsegmento");
+  const colProf   = mapCol(hdPos, "profissao", "dscprofissao", "ocupacao");
+  const colNasc   = mapCol(hdPos, "nascimento", "datanascimento", "datdatanascimento");
+  const colSeg    = mapColExact(hdPos, "Segmento", "DSC_SEGMENTO") || mapCol(hdPos, "segmento");
+  const colCadastro = mapCol(hdPos, "cadastro", "datcadastro", "datacadastro");
+
   if (!colContaP) throw new Error(
-    `Positivador: coluna de código não encontrada.\n` +
-    `Colunas detectadas: ${hdPos.slice(0, 15).join(", ")}${hdPos.length > 15 ? "…" : ""}`
+    `Positivador: coluna de código não encontrada.\nColunas: ${hdPos.slice(0, 20).join(", ")}`
   );
   if (!colNet) throw new Error(
-    `Positivador: coluna de NET não encontrada.\n` +
-    `Colunas detectadas: ${hdPos.slice(0, 15).join(", ")}${hdPos.length > 15 ? "…" : ""}`
+    `Positivador: coluna de NET não encontrada.\nColunas: ${hdPos.slice(0, 40).join(", ")}`
   );
 
-  const dadosPorConta = new Map<string, any>();
+  // ── 3. Positivador → mapa conta → dados ──────────────────────────────────
+  // Itera pelo Positivador (já filtrado pelo assessor) e busca nome no Saldo
+  const clts: any[] = [];
+  let semNomeNoSaldo = 0;
   for (const r of rowsPos) {
     const conta = String(r[colContaP] || "").trim();
     if (!conta) continue;
-    dadosPorConta.set(conta, {
-      net:             parseNet(r[colNet]),
-      suitability:     colSuit ? String(r[colSuit]  || "").trim() : "",
-      profissao:       colProf ? String(r[colProf]  || "").trim() : "",
-      data_nascimento: colNasc ? normalizarData(r[colNasc]) : "",
-      segmento:        colSeg  ? String(r[colSeg]   || "").trim() : "",
-    });
-  }
-
-  const clts: any[] = [];
-  let semMatchPositivador = 0;
-  for (const [conta, nome] of nomesPorConta) {
-    if (!nome) continue;
-    const pos = dadosPorConta.get(conta);
-    if (!pos) { semMatchPositivador++; continue; }
+    const nome = nomesPorConta.get(conta) || "";
+    if (!nome) { semNomeNoSaldo++; }
     clts.push({
       codigo_conta:    conta,
       nome,
-      net:             pos.net,
-      suitability:     pos.suitability,
-      profissao:       pos.profissao,
-      data_nascimento: pos.data_nascimento,
-      segmento:        pos.segmento,
+      net:             parseNet(r[colNet]),
+      suitability:     colSuit    ? String(r[colSuit]    || "").trim() : "",
+      profissao:       colProf    ? String(r[colProf]    || "").trim() : "",
+      data_nascimento: colNasc    ? normalizarData(r[colNasc]) : "",
+      data_cadastro:   colCadastro ? normalizarData(r[colCadastro]) : "",
+      segmento:        colSeg     ? String(r[colSeg]     || "").trim() : "",
     });
   }
   if (clts.length === 0) throw new Error("Nenhum cliente encontrado. Verifique se os arquivos são os corretos.");
-  return { clts, semMatchPositivador, debug: { colContaP, colNet, colSuit, colProf, colNasc, colSeg } };
+  return { clts, semNomeNoSaldo, debug: { colContaP, colNet, colSuit, colProf, colNasc, colSeg } };
 }
 
 // ── Parsers: Diversificador ───────────────────────────────────────────────────
@@ -371,13 +369,14 @@ export default function ImportarPage() {
     if (!user || !fileRel || !filePos) return;
     setStClts("loading"); setMsgClts("");
     try {
-      const { clts, semMatchPositivador, debug } = await parsearClientes(fileRel, filePos);
+      const { clts, semNomeNoSaldo, debug } = await parsearClientes(fileRel, filePos);
       const n = await importarClientes(user.uid, clts);
-      const semMatchMsg = semMatchPositivador > 0
-        ? ` · ${semMatchPositivador} sem correspondência no Positivador`
+      const semNomeMsg = semNomeNoSaldo > 0
+        ? ` · ${semNomeNoSaldo} sem nome no Rel. Saldo`
         : "";
-      const perfilMsg = debug.colSuit ? ` · Perfil: "${debug.colSuit}"` : " · Perfil: não encontrado no arquivo";
-      setMsgClts(`${n} clientes importados${semMatchMsg}! NET: "${debug.colNet}"${perfilMsg}`);
+      const perfilMsg = debug.colSuit ? ` · perfil OK ("${debug.colSuit}")` : " · perfil: não encontrado";
+      const netMsg = debug.colNet ? ` · net OK ("${debug.colNet}")` : " · NET: coluna não encontrada!";
+      setMsgClts(`${n} clientes importados${semNomeMsg}!${netMsg}${perfilMsg}`);
       setStClts("ok");
       triggerRefresh();
     } catch (err: any) {
