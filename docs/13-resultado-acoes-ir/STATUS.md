@@ -17,7 +17,8 @@
 - [x] Análise de gaps e bloqueadores (`07-analise-gaps-bloqueadores/analise-gaps.md`)
 - [x] Decisões arquiteturais tomadas
 - [x] Plano de sessões definido
-- [ ] P1 — Schema canônico
+- [x] P1 — Schema canônico (commit 3739a06 — 2026-05-07)
+- [ ] P2 — Infraestrutura (next.config.js, pdfjs, Security Rules)
 - [ ] P2 — Infraestrutura (next.config.js, pdfjs, Security Rules)
 - [ ] F1 — Parser PDF
 - [ ] F2 — Upload modal multi-arquivo
@@ -64,7 +65,24 @@ Resumo:
 
 ---
 
-## Sessão P1 — o que criar
+## Sessão P2 — o que criar (próxima)
+
+Arquivos a criar/modificar:
+
+```
+frontend/
+  next.config.js              ← copiar cmaps pdfjs para /public, serverComponentsExternalPackages
+  src/lib/ir/
+    pdf/
+      pdfjs-loader.ts         ← inicialização com cMapUrl, cMapPacked, workerSrc
+    asset-classifier.ts       ← classifyAsset(ticker, tipoMercado) → AssetClass
+firestore.rules               ← Security Rules para as 5 novas collections
+
+frontend/public/
+  cmaps/                      ← arquivos de CMap copiados pelo next.config.js (gerado no build)
+```
+
+## Sessão P1 — o que criar (concluído)
 
 Arquivos a criar em `frontend/src/lib/ir/`:
 
