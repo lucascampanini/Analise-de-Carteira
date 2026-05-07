@@ -116,6 +116,56 @@ service cloud.firestore {
         allow create, update: if isOwner(userId)
           && notTooManyKeys(50);
       }
+
+      // ── IR em Notas Sinacor ────────────────────────────────────────────────
+      // Todas as coleções IR ficam sob clientes/{clienteId}/ para herdar
+      // o modelo de acesso por conta já estabelecido no CRM.
+
+      // Notas de corretagem — campo obrigatório: dataPregao + codigoCliente
+      match /clientes/{clienteId}/notas_corretagem/{docId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.keys().hasAll(['dataPregao', 'codigoCliente'])
+          && request.resource.data.codigoCliente is string
+          && notTooManyKeys(30);
+      }
+
+      // Posições IR (preço médio por ativo) — campo obrigatório: ticker + codigoCliente
+      match /clientes/{clienteId}/posicoes_ir/{docId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.keys().hasAll(['ticker', 'codigoCliente'])
+          && request.resource.data.ticker is string
+          && request.resource.data.ticker.size() > 0
+          && notTooManyKeys(20);
+      }
+
+      // Apurações mensais IR — campo obrigatório: anoMes + codigoCliente
+      match /clientes/{clienteId}/apuracoes_ir/{docId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.keys().hasAll(['anoMes', 'codigoCliente'])
+          && request.resource.data.anoMes is string
+          && notTooManyKeys(30);
+      }
+
+      // Saldo de prejuízo acumulado — campo obrigatório: tipo + codigoCliente
+      match /clientes/{clienteId}/saldo_prejuizo/{docId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.keys().hasAll(['tipo', 'codigoCliente'])
+          && request.resource.data.tipo is string
+          && notTooManyKeys(10);
+      }
+
+      // Eventos corporativos por cliente (splits, grupamentos, bonificações)
+      match /clientes/{clienteId}/eventos_corporativos/{docId} {
+        allow read, delete: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+          && request.resource.data.keys().hasAll(['ticker', 'dataEvento', 'tipoEvento'])
+          && request.resource.data.ticker is string
+          && notTooManyKeys(15);
+      }
     }
   }
 }

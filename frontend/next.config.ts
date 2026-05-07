@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
   assetPrefix: basePath,
   trailingSlash: true,
   images: { unoptimized: true },
+
+  webpack: (config) => {
+    // pdfjs-dist tenta importar 'canvas' no Node — não existe no browser
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      canvas: false,
+    };
+    return config;
+  },
 };
 
 export default nextConfig;
