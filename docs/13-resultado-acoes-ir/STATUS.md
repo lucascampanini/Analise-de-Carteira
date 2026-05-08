@@ -7,9 +7,9 @@
 
 ## Estado atual
 
-**Fase:** Implementação — F6 (Relatório PDF)
-**Próxima sessão:** F6 — Relatório PDF com @react-pdf/renderer
-**Código implementado:** P1 + P2 + F1 + F2 + F3 + F4 + F5 completos
+**Fase:** Concluída — MVP F1→F6 entregues
+**Próxima sessão:** F7 (parser Python), F8 (eventos corporativos), F9 (futuros), F10 (opções completas) — todos opcionais
+**Código implementado:** P1 + P2 + F1 + F2 + F3 + F4 + F5 + F6 completos
 
 ## O que já foi feito
 
@@ -23,8 +23,8 @@
 - [x] F2 — Upload modal multi-arquivo (commit 58fdba1 — 2026-05-08)
 - [x] F3 — PM Calculator (commit 3e68b04 — 2026-05-08)
 - [x] F4 — Apuração mensal (commit 32fe46c — 2026-05-08)
-- [x] F5 — Dashboard + hooks (commit pendente — 2026-05-08)
-- [ ] F6 — Relatório PDF
+- [x] F5 — Dashboard + hooks (commit b4f850f — 2026-05-08)
+- [x] F6 — Relatório PDF (commit pendente — 2026-05-08)
 - [ ] F7 — Parser Python (Firebase Function)
 - [ ] F8 — Eventos corporativos
 

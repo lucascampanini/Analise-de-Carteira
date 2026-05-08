@@ -2,11 +2,11 @@
 import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
-import { Upload, AlertTriangle, TrendingDown, BarChart2, Calendar } from 'lucide-react';
+import { Upload, AlertTriangle, TrendingDown, BarChart2, Calendar, FileDown } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { getNotasCorretagem } from '@/lib/ir/firestore';
-import { usePosicoesIR, useResultadoMensal, useSaldoPrejuizo } from '@/lib/ir/hooks';
+import { usePosicoesIR, useResultadoMensal, useSaldoPrejuizo, useApuracoes } from '@/lib/ir/hooks';
 import { LIMITE_ISENCAO_ACOES_CENTAVOS, DARF_MINIMO_CENTAVOS } from '@/lib/ir/types/asset-types';
 import { UploadNotasModal } from '@/components/ir/UploadNotasModal';
 import type { NotaCorretagemDoc } from '@/lib/ir/types/firestore-schema';
@@ -146,6 +146,21 @@ export default function IRClientePage({
   const [notas, setNotas] = useState<NotaCorretagemDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
+  const [gerandoPDF, setGerandoPDF] = useState<string | null>(null); // anoMes em geração
+
+  const { apuracoes } = useApuracoes(user?.uid, clienteId);
+
+  const baixarPDF = async (anoMes: string) => {
+    setGerandoPDF(anoMes);
+    try {
+      const apuracao = apuracoes.find((a) => a.anoMes === anoMes);
+      if (!apuracao) return;
+      const { baixarRelatorioIR } = await import('@/components/ir/RelatorioIRPDF');
+      await baixarRelatorioIR(apuracao, nomeCliente || clienteId);
+    } finally {
+      setGerandoPDF(null);
+    }
+  };
 
   const carregarDados = async () => {
     if (!user) return;
@@ -250,6 +265,62 @@ export default function IRClientePage({
           </div>
         )}
       </div>
+
+      {/* Histórico de apurações */}
+      {apuracoes.length > 0 && (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="px-5 py-3 border-b border-slate-100">
+            <h2 className="font-semibold text-slate-700 text-sm">Apurações mensais</h2>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-slate-100 text-xs text-slate-500 text-left">
+                  <th className="px-4 py-2 font-medium">Mês</th>
+                  <th className="px-4 py-2 font-medium text-right">DARF total</th>
+                  <th className="px-4 py-2 font-medium text-right">Prejuízo A_ST</th>
+                  <th className="px-4 py-2 font-medium text-right">Prejuízo B_ST</th>
+                  <th className="px-4 py-2 font-medium">Vencimento</th>
+                  <th className="px-4 py-2 font-medium"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {apuracoes.map((a) => {
+                  const darf = a.darfTotalEmCentavos;
+                  const darfDevido = darf >= DARF_MINIMO_CENTAVOS;
+                  return (
+                    <tr key={a.anoMes} className="hover:bg-slate-50">
+                      <td className="px-4 py-2.5 font-mono text-slate-700">{a.anoMes}</td>
+                      <td className={`px-4 py-2.5 text-right font-medium ${darfDevido ? 'text-svn-ruby' : 'text-slate-400'}`}>
+                        {darfDevido ? brl(darf) : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-slate-600">
+                        {a.cestaA_ST.novoSaldoPrejuizoEmCentavos > 0 ? brl(a.cestaA_ST.novoSaldoPrejuizoEmCentavos) : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-right text-slate-600">
+                        {a.cestaB_ST.novoSaldoPrejuizoEmCentavos > 0 ? brl(a.cestaB_ST.novoSaldoPrejuizoEmCentavos) : '—'}
+                      </td>
+                      <td className="px-4 py-2.5 text-slate-500 text-xs">
+                        {a.vencimentoDarf ? formatData(a.vencimentoDarf) : '—'}
+                      </td>
+                      <td className="px-4 py-2.5">
+                        <button
+                          onClick={() => baixarPDF(a.anoMes)}
+                          disabled={gerandoPDF === a.anoMes}
+                          className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-svn-ruby transition-colors disabled:opacity-40"
+                        >
+                          <FileDown size={13} />
+                          {gerandoPDF === a.anoMes ? 'Gerando…' : 'PDF'}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       <UploadNotasModal
         clienteId={clienteId}
