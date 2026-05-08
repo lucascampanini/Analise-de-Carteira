@@ -7,9 +7,9 @@
 
 ## Estado atual
 
-**Fase:** Implementação — F2 (Upload modal)
-**Próxima sessão:** F2 — Upload modal multi-arquivo + fila de processamento
-**Código implementado:** P1 + P2 + F1 completos (commit dbf31c7)
+**Fase:** Implementação — F3 (PM Calculator)
+**Próxima sessão:** F3 — Cálculo de preço médio ponderado móvel
+**Código implementado:** P1 + P2 + F1 + F2 completos (commit 58fdba1)
 
 ## O que já foi feito
 
@@ -20,7 +20,7 @@
 - [x] P1 — Schema canônico (commit 3739a06 — 2026-05-07)
 - [x] P2 — Infraestrutura (commit 2f62fb3 — 2026-05-07)
 - [x] F1 — Parser PDF (commit dbf31c7 — 2026-05-08)
-- [ ] F2 — Upload modal multi-arquivo
+- [x] F2 — Upload modal multi-arquivo (commit 58fdba1 — 2026-05-08)
 - [ ] F3 — PM Calculator
 - [ ] F4 — Apuração mensal
 - [ ] F5 — Dashboard + hooks
@@ -64,7 +64,64 @@ Pendente:
 
 ---
 
-## Sessão F2 — o que criar (próxima)
+## Sessão F3 — o que criar (próxima)
+
+Objetivo: calcular preço médio ponderado (PM) móvel por ticker após importação de notas.
+F3 é disparado automaticamente após F2 salvar notas no Firestore.
+
+```
+frontend/src/lib/ir/
+  pm-calculator.ts      ← calcularPM(uid, clienteId, notas[]) → atualiza posicoes_ir
+  cost-rateio.ts        ← ratearCustos(operacoes, resumo) → custoRateadoEmCentavos por op
+```
+
+### Regras do PM (IN SRF 84/2001)
+
+PM móvel = custo total acumulado / quantidade total em custódia
+- **Compra**: PM = (qtd_anterior × pm_anterior + qtd_nova × preco_novo + custoRateado) / (qtd_anterior + qtd_nova)
+- **Venda**: PM não muda. Remove qtd vendida. Apura ganho = (preco_venda - pm_atual) × qtd_vendida - custoRateado
+- **DT parcial**: compra e venda no mesmo dia → lucro/prejuízo DT = (preco_venda - preco_compra) × qtd_menor - custos_DT
+
+### Campos atualizados em posicoes_ir
+
+Para cada ticker afetado pelas notas processadas:
+```
+{
+  ticker, clienteId, uid,
+  classeAtivo, cestaIR,
+  quantidade: number,         // atual após vendas
+  pmEmCentavos: number,       // custo médio por ação
+  custoTotalEmCentavos: number, // quantidade × pmEmCentavos
+  ultimaAtualizacao: Timestamp,
+  ultimaNotaId: string,
+  possuiDayTradeAberto: boolean
+}
+```
+
+### Atenção ao implementar F3
+
+- Ordenar notas por dataPregao ASC antes de processar (ordem cronológica = PM correto)
+- DT parcial: se comprou 100 e vendeu 50 no mesmo dia, 50 são DT e 50 são ST
+- Quantidade negativa é ERRO — bloquear e logar (indica nota faltando)
+- Bonificação: não entra no PM se custo divulgado for 0 (lei específica para FII)
+- `posicoes_ir` é um upsert por ticker — documento ID = ticker
+
+### Como F3 é chamado
+
+Após salvarNota() em F2, o caller (page.tsx) deve chamar:
+```typescript
+await calcularPM(uid, clienteId, notasSalvas);
+```
+OU recalcular do zero a cada importação (mais simples, OK até ~200 notas):
+```typescript
+await recalcularPMCompleto(uid, clienteId); // lê todas as notas e reconstrói posicoes_ir
+```
+
+Para MVP, usar a abordagem "recalcular do zero" — evita bugs de estado incremental.
+
+---
+
+## Sessão F2 — concluída (commit 58fdba1)
 
 Objetivo: upload modal multi-arquivo para notas Sinacor + fila de processamento.
 O assessor arrastar N PDFs, o sistema ordena por dataPregao e processa em sequência.
