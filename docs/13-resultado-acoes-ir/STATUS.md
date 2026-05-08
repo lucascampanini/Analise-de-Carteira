@@ -7,9 +7,9 @@
 
 ## Estado atual
 
-**Fase:** Implementação — F5 (Dashboard + hooks)
-**Próxima sessão:** F5 — Dashboard resumo + hooks React (usePosicoesIR, useResultadoMensal)
-**Código implementado:** P1 + P2 + F1 + F2 + F3 + F4 completos
+**Fase:** Implementação — F6 (Relatório PDF)
+**Próxima sessão:** F6 — Relatório PDF com @react-pdf/renderer
+**Código implementado:** P1 + P2 + F1 + F2 + F3 + F4 + F5 completos
 
 ## O que já foi feito
 
@@ -22,8 +22,8 @@
 - [x] F1 — Parser PDF (commit dbf31c7 — 2026-05-08)
 - [x] F2 — Upload modal multi-arquivo (commit 58fdba1 — 2026-05-08)
 - [x] F3 — PM Calculator (commit 3e68b04 — 2026-05-08)
-- [x] F4 — Apuração mensal (commit pendente — 2026-05-08)
-- [ ] F5 — Dashboard + hooks
+- [x] F4 — Apuração mensal (commit 32fe46c — 2026-05-08)
+- [x] F5 — Dashboard + hooks (commit pendente — 2026-05-08)
 - [ ] F6 — Relatório PDF
 - [ ] F7 — Parser Python (Firebase Function)
 - [ ] F8 — Eventos corporativos

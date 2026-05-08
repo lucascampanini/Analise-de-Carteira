@@ -2,25 +2,26 @@
 import { useEffect, useState } from 'react';
 import { doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
-import { Upload } from 'lucide-react';
+import { Upload, AlertTriangle, TrendingDown, BarChart2, Calendar } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { getNotasCorretagem } from '@/lib/ir/firestore';
+import { usePosicoesIR, useResultadoMensal, useSaldoPrejuizo } from '@/lib/ir/hooks';
+import { LIMITE_ISENCAO_ACOES_CENTAVOS, DARF_MINIMO_CENTAVOS } from '@/lib/ir/types/asset-types';
 import { UploadNotasModal } from '@/components/ir/UploadNotasModal';
 import type { NotaCorretagemDoc } from '@/lib/ir/types/firestore-schema';
 
-const STATUS_LABEL: Record<string, string> = {
-  processando:      'Processando',
-  processado:       'Importado',
-  revisao_pendente: 'Revisão pendente',
-  erro:             'Erro',
-};
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
+const STATUS_LABEL: Record<string, string> = {
+  processando: 'Processando', processado: 'Importado',
+  revisao_pendente: 'Revisão pendente', erro: 'Erro',
+};
 const STATUS_CLS: Record<string, string> = {
-  processado:       'bg-emerald-100 text-emerald-700',
+  processado: 'bg-emerald-100 text-emerald-700',
   revisao_pendente: 'bg-amber-100 text-amber-700',
-  erro:             'bg-red-100 text-svn-ruby',
-  processando:      'bg-blue-100 text-blue-700',
+  erro: 'bg-red-100 text-svn-ruby',
+  processando: 'bg-blue-100 text-blue-700',
 };
 
 function formatData(iso: string) {
@@ -28,6 +29,110 @@ function formatData(iso: string) {
   const [yyyy, mm, dd] = iso.split('-');
   return `${dd}/${mm}/${yyyy}`;
 }
+
+function brl(centavos: number) {
+  return (centavos / 100).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function anoMesAtual(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// ─── Sub-componente: cards de resumo IR ──────────────────────────────────────
+
+function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
+  const anoMes = anoMesAtual();
+  const { posicoes, loading: pLoading } = usePosicoesIR(uid, clienteId);
+  const { apuracao, loading: aLoading } = useResultadoMensal(uid, clienteId, anoMes);
+  const { saldos, loading: sLoading }   = useSaldoPrejuizo(uid, clienteId);
+
+  const loading = pLoading || aLoading || sLoading;
+  if (loading) return <div className="text-xs text-slate-400 py-2">Calculando…</div>;
+
+  // DARF do mês: soma dos 4 darfTotalEmCentavos (só mostra se >= R$10)
+  const darfTotal = apuracao
+    ? apuracao.cestaA_ST.darfTotalEmCentavos + apuracao.cestaA_DT.darfTotalEmCentavos
+      + apuracao.cestaB_ST.darfTotalEmCentavos + apuracao.cestaB_DT.darfTotalEmCentavos
+    : 0;
+  const darfDevido = darfTotal >= DARF_MINIMO_CENTAVOS;
+
+  // Alerta R$20k: vendas ACAO+UNIT ST acumuladas no mês
+  const vendasAcoes = apuracao?.cestaA_ST.vendasAcoesSTemCentavos ?? 0;
+  const pctIsencao  = Math.min(100, Math.round((vendasAcoes / LIMITE_ISENCAO_ACOES_CENTAVOS) * 100));
+  const proximoLimite = pctIsencao >= 70 && pctIsencao < 100;
+  const atingiuLimite = vendasAcoes > LIMITE_ISENCAO_ACOES_CENTAVOS;
+
+  // Posições abertas
+  const totalPosicoes = posicoes.length;
+  const plTotal = posicoes.reduce((acc, p) => acc + p.custoTotalEmCentavos, 0);
+
+  return (
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* DARF do mês */}
+      <div className={`rounded-xl border p-4 ${darfDevido ? 'border-svn-ruby bg-red-50' : 'border-slate-200 bg-white'}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <Calendar size={14} className={darfDevido ? 'text-svn-ruby' : 'text-slate-400'} />
+          <span className="text-xs font-medium text-slate-500">DARF {anoMes}</span>
+        </div>
+        <p className={`text-lg font-bold ${darfDevido ? 'text-svn-ruby' : 'text-slate-400'}`}>
+          {darfDevido ? brl(darfTotal) : '—'}
+        </p>
+        <p className="text-[11px] text-slate-400 mt-0.5">
+          {darfDevido
+            ? `Vence ${apuracao?.vencimentoDarf ? formatData(apuracao.vencimentoDarf) : '—'}`
+            : apuracao ? 'Nenhum DARF devido' : 'Sem apuração'}
+        </p>
+      </div>
+
+      {/* Saldo de prejuízo */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <TrendingDown size={14} className="text-slate-400" />
+          <span className="text-xs font-medium text-slate-500">Prejuízo acumulado</span>
+        </div>
+        <p className="text-lg font-bold text-slate-800">
+          {saldos.total > 0 ? brl(saldos.total) : '—'}
+        </p>
+        <p className="text-[11px] text-slate-400 mt-0.5">
+          {saldos.total > 0 ? 'A compensar em meses futuros' : 'Sem saldo a compensar'}
+        </p>
+      </div>
+
+      {/* Posições abertas */}
+      <div className="rounded-xl border border-slate-200 bg-white p-4">
+        <div className="flex items-center gap-2 mb-1">
+          <BarChart2 size={14} className="text-slate-400" />
+          <span className="text-xs font-medium text-slate-500">Posições abertas</span>
+        </div>
+        <p className="text-lg font-bold text-slate-800">{totalPosicoes}</p>
+        <p className="text-[11px] text-slate-400 mt-0.5">
+          {totalPosicoes > 0 ? `Custo total: ${brl(plTotal)}` : 'Sem posições'}
+        </p>
+      </div>
+
+      {/* Alerta isenção R$20k */}
+      <div className={`rounded-xl border p-4 ${atingiuLimite ? 'border-svn-ruby bg-red-50' : proximoLimite ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}>
+        <div className="flex items-center gap-2 mb-1">
+          <AlertTriangle size={14} className={atingiuLimite ? 'text-svn-ruby' : proximoLimite ? 'text-amber-500' : 'text-slate-400'} />
+          <span className="text-xs font-medium text-slate-500">Isenção R$20k</span>
+        </div>
+        <p className={`text-lg font-bold ${atingiuLimite ? 'text-svn-ruby' : proximoLimite ? 'text-amber-600' : 'text-slate-400'}`}>
+          {vendasAcoes > 0 ? `${pctIsencao}%` : '—'}
+        </p>
+        <p className="text-[11px] text-slate-400 mt-0.5">
+          {atingiuLimite
+            ? 'Limite atingido — IR devido'
+            : vendasAcoes > 0
+              ? `${brl(vendasAcoes)} de ${brl(LIMITE_ISENCAO_ACOES_CENTAVOS)}`
+              : 'Sem vendas de ações no mês'}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ─── Página principal ─────────────────────────────────────────────────────────
 
 export default function IRClientePage({
   params,
@@ -69,9 +174,7 @@ export default function IRClientePage({
       {/* Cabeçalho */}
       <div className="flex items-center gap-3 flex-wrap">
         <Link href="/clientes" className="text-svn-ruby text-sm">← Clientes</Link>
-        <h1 className="text-2xl font-bold text-slate-800">
-          IR — {nomeCliente}
-        </h1>
+        <h1 className="text-2xl font-bold text-slate-800">IR — {nomeCliente}</h1>
         <span className="text-sm text-slate-400 font-mono">{clienteId}</span>
         <button
           onClick={() => setModalOpen(true)}
@@ -82,12 +185,13 @@ export default function IRClientePage({
         </button>
       </div>
 
+      {/* Cards de resumo IR */}
+      {user && <IRResumoCards uid={user.uid} clienteId={clienteId} />}
+
       {/* Tabela de notas */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
         <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-700 text-sm">
-            Notas de Corretagem
-          </h2>
+          <h2 className="font-semibold text-slate-700 text-sm">Notas de Corretagem</h2>
           <span className="text-xs text-slate-400">{notas.length} importada{notas.length !== 1 ? 's' : ''}</span>
         </div>
 
@@ -125,15 +229,11 @@ export default function IRClientePage({
                       <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">
                         {formatData(n.dataPregao)}
                       </td>
-                      <td className="px-4 py-2.5 font-mono text-slate-600">
-                        {n.nrNota}
-                      </td>
+                      <td className="px-4 py-2.5 font-mono text-slate-600">{n.nrNota}</td>
                       <td className="px-4 py-2.5 text-slate-600 max-w-[180px] truncate" title={n.corretora}>
                         {n.corretora}
                       </td>
-                      <td className="px-4 py-2.5 text-right text-slate-700">
-                        {n.operacoes.length}
-                      </td>
+                      <td className="px-4 py-2.5 text-right text-slate-700">{n.operacoes.length}</td>
                       <td className={`px-4 py-2.5 text-right font-medium ${liquido >= 0 ? 'text-emerald-700' : 'text-svn-ruby'}`}>
                         {liquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                       </td>
