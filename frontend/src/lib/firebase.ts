@@ -1,6 +1,7 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { initializeFirestore, getFirestore, persistentLocalCache, type Firestore } from "firebase/firestore";
+import { getFunctions, type Functions } from "firebase/functions";
 import { initializeAppCheck, ReCaptchaV3Provider, type AppCheck } from "firebase/app-check";
 
 // Firebase is only available in the browser — guard against SSR pre-rendering
@@ -56,6 +57,7 @@ function initAppCheck(app: FirebaseApp): AppCheck | null {
 }
 
 // Lazy singletons — safe to import at module level; only initialized when called
-export const auth     = typeof window !== "undefined" ? getAuth(getApp()) : null as unknown as Auth;
-export const db       = typeof window !== "undefined" ? getDb()           : null as unknown as Firestore;
-export const appCheck = typeof window !== "undefined" ? initAppCheck(getApp()) : null;
+export const auth      = typeof window !== "undefined" ? getAuth(getApp())                                    : null as unknown as Auth;
+export const db        = typeof window !== "undefined" ? getDb()                                              : null as unknown as Firestore;
+export const functions = typeof window !== "undefined" ? getFunctions(getApp(), "southamerica-east1")         : null as unknown as Functions;
+export const appCheck  = typeof window !== "undefined" ? initAppCheck(getApp())                               : null;

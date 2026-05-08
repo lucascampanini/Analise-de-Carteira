@@ -7,9 +7,9 @@
 
 ## Estado atual
 
-**Fase:** Concluída — MVP F1→F6 entregues
-**Próxima sessão:** F7 (parser Python), F8 (eventos corporativos), F9 (futuros), F10 (opções completas) — todos opcionais
-**Código implementado:** P1 + P2 + F1 + F2 + F3 + F4 + F5 + F6 completos
+**Fase:** F7 concluído — MVP F1→F7 entregues
+**Próxima sessão:** F8 (eventos corporativos), F9 (futuros), F10 (opções completas) — todos opcionais
+**Código implementado:** P1 + P2 + F1 + F2 + F3 + F4 + F5 + F6 + F7 completos
 
 ## O que já foi feito
 
@@ -24,8 +24,8 @@
 - [x] F3 — PM Calculator (commit 3e68b04 — 2026-05-08)
 - [x] F4 — Apuração mensal (commit 32fe46c — 2026-05-08)
 - [x] F5 — Dashboard + hooks (commit b4f850f — 2026-05-08)
-- [x] F6 — Relatório PDF (commit pendente — 2026-05-08)
-- [ ] F7 — Parser Python (Firebase Function)
+- [x] F6 — Relatório PDF (commit 72569c5 — 2026-05-08)
+- [x] F7 — Parser Python (commit pendente — 2026-05-08)
 - [ ] F8 — Eventos corporativos
 
 ---
@@ -118,6 +118,19 @@ Para DT: custo de aquisição = preço médio das compras DT do mesmo pregão
 - `vendasAcoesSTemCentavos` já está calculado em cada nota (soma apenas ACAO+UNIT)
 - O custo DT usa a média das compras DT do mesmo pregão (não o PM acumulado)
 - Ordenar meses ASC para processar carry-forward corretamente
+
+---
+
+## Deploy F7 — instrução
+
+Para ativar o parser Python em produção:
+1. Ativar plano Blaze no Console Firebase
+2. `firebase login` (se não autenticado)
+3. `firebase deploy --only functions`
+4. A função `parse_sinacor_nota` ficará disponível em `southamerica-east1`
+
+O frontend já consome a função automaticamente: quando o parser browser retorna
+qualidade IMAGEM ou BAIXA, aparece o botão "Tentar com servidor" no item da fila.
 
 ---
 

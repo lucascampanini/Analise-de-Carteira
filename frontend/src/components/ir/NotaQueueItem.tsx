@@ -29,15 +29,17 @@ interface Props {
   parsed?: ParsedNotaResult;
   error?: string;
   isDuplicate: boolean;
+  qualidadeBaixa?: boolean;
   corrections: Record<string, string>;
   onRetry: () => void;
+  onServidorParser: () => void;
   onCorrection: (field: string, value: string) => void;
   onConfirmar: () => void;
 }
 
 export function NotaQueueItem({
-  fileName, status, parsed, error, isDuplicate,
-  corrections, onRetry, onCorrection, onConfirmar,
+  fileName, status, parsed, error, isDuplicate, qualidadeBaixa,
+  corrections, onRetry, onServidorParser, onCorrection, onConfirmar,
 }: Props) {
   const [expanded, setExpanded] = useState(status === 'needs_review');
   const sb = STATUS_BADGE[status];
@@ -74,11 +76,13 @@ export function NotaQueueItem({
 
         <div className="ml-auto flex gap-1.5">
           {status === 'error' && !isDuplicate && (
-            <button
-              onClick={onRetry}
-              className="text-[11px] text-svn-ruby underline"
-            >
+            <button onClick={onRetry} className="text-[11px] text-svn-ruby underline">
               Tentar novamente
+            </button>
+          )}
+          {qualidadeBaixa && (
+            <button onClick={onServidorParser} className="text-[11px] text-blue-600 underline">
+              Tentar com servidor
             </button>
           )}
           {status === 'needs_review' && (

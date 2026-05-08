@@ -6,6 +6,8 @@ import { notaJaExiste, salvarNota } from '@/lib/ir/firestore';
 import { recalcularPMCompleto } from '@/lib/ir/pm-calculator';
 import { recalcularApuracoesCompleto } from '@/lib/ir/apuracao-mensal';
 import { NotaQueueItem, type ItemStatus } from './NotaQueueItem';
+import { ExtractionQuality } from '@/lib/ir/types/parsed-nota';
+import { deveriaUsarServidorParser } from '@/lib/ir/server-parser';
 import type { ParsedNotaResult } from '@/lib/ir/types/parsed-nota';
 
 interface QueueItem {
@@ -16,6 +18,7 @@ interface QueueItem {
   error?: string;
   corrections: Record<string, string>;
   isDuplicate: boolean;
+  qualidadeBaixa?: boolean; // true = parser browser falhou, oferecer servidor
 }
 
 interface Props {
@@ -80,9 +83,11 @@ export function UploadNotasModal({ clienteId, open, onClose, onSaved }: Props) {
       }
 
       const noOps = parsed.camposFaltando.includes('operacoes');
+      // Qualidade IMAGEM ou BAIXA → mantém parsed mas sinaliza para oferecer servidor
+      const qualidadeBaixa = deveriaUsarServidorParser(parsed.qualidade);
       const nextStatus: ItemStatus = isDuplicate
         ? 'skipped'
-        : noOps
+        : noOps && !qualidadeBaixa
           ? 'error'
           : parsed.camposFaltando.length > 0
             ? 'needs_review'
@@ -98,9 +103,10 @@ export function UploadNotasModal({ clienteId, open, onClose, onSaved }: Props) {
                   status: nextStatus,
                   parsed,
                   isDuplicate,
+                  qualidadeBaixa,
                   error: isDuplicate
                     ? `Nota ${parsed.nrNota} já importada`
-                    : noOps
+                    : noOps && !qualidadeBaixa
                       ? 'Nenhuma operação encontrada — verifique o formato do PDF'
                       : undefined,
                 },
@@ -113,6 +119,47 @@ export function UploadNotasModal({ clienteId, open, onClose, onSaved }: Props) {
           prev.map((i) =>
             i.id === itemId
               ? { ...i, status: 'error', error: err instanceof Error ? err.message : 'Erro inesperado' }
+              : i,
+          ),
+        );
+      }
+    }
+  }, [clienteId, user]);
+
+  // ── Parser servidor (fallback Python/correpy) ─────────────────────────────
+  const parseItemServidor = useCallback(async (itemId: string, file: File, pwd: string) => {
+    setItems((prev) =>
+      prev.map((i) => i.id === itemId ? { ...i, status: 'parsing', error: undefined, qualidadeBaixa: false } : i),
+    );
+    try {
+      const buffer = await file.arrayBuffer();
+      const { parseSinacorNotaServer } = await import('@/lib/ir/server-parser');
+      const parsed = await parseSinacorNotaServer(buffer, pwd || undefined);
+
+      let isDuplicate = false;
+      if (parsed.nrNota && user) {
+        try { isDuplicate = await notaJaExiste(user.uid, clienteId, parsed.nrNota); } catch { /* ignora */ }
+      }
+
+      const noOps = parsed.camposFaltando.includes('operacoes');
+      const nextStatus: ItemStatus = isDuplicate ? 'skipped' : noOps ? 'error' : parsed.camposFaltando.length > 0 ? 'needs_review' : 'ready';
+
+      if (mountedRef.current) {
+        setItems((prev) =>
+          prev.map((i) =>
+            i.id !== itemId ? i : {
+              ...i, status: nextStatus, parsed, isDuplicate, qualidadeBaixa: false,
+              error: isDuplicate ? `Nota ${parsed.nrNota} já importada` : noOps ? 'Sem operações (servidor)' : undefined,
+            },
+          ),
+        );
+      }
+    } catch (err: unknown) {
+      if (mountedRef.current) {
+        setItems((prev) =>
+          prev.map((i) =>
+            i.id === itemId
+              ? { ...i, status: 'error', error: err instanceof Error ? err.message : 'Erro no parser servidor' }
               : i,
           ),
         );
@@ -287,8 +334,10 @@ export function UploadNotasModal({ clienteId, open, onClose, onSaved }: Props) {
                   parsed={item.parsed}
                   error={item.error}
                   isDuplicate={item.isDuplicate}
+                  qualidadeBaixa={item.qualidadeBaixa}
                   corrections={item.corrections}
                   onRetry={() => parseItem(item.id, item.file, password)}
+                  onServidorParser={() => parseItemServidor(item.id, item.file, password)}
                   onCorrection={(field, value) => applyCorrection(item.id, field, value)}
                   onConfirmar={() => confirmarRevisao(item.id)}
                 />
