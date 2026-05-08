@@ -3,6 +3,7 @@ import { useCallback, useRef, useState } from 'react';
 import { X, Upload } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { notaJaExiste, salvarNota } from '@/lib/ir/firestore';
+import { recalcularPMCompleto } from '@/lib/ir/pm-calculator';
 import { NotaQueueItem, type ItemStatus } from './NotaQueueItem';
 import type { ParsedNotaResult } from '@/lib/ir/types/parsed-nota';
 
@@ -186,6 +187,13 @@ export function UploadNotasModal({ clienteId, open, onClose, onSaved }: Props) {
             i.id === item.id ? { ...i, status: 'error', error: 'Erro ao salvar no Firestore' } : i,
           ),
         );
+      }
+    }
+
+    if (savedAny) {
+      // Recalcula PM após salvar — garante posicoes_ir sempre consistente
+      try { await recalcularPMCompleto(user.uid, clienteId); } catch (e) {
+        console.error('[ir] recalcularPMCompleto falhou:', e);
       }
     }
 
