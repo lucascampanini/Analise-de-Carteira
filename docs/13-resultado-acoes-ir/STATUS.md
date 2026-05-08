@@ -7,9 +7,9 @@
 
 ## Estado atual
 
-**Fase:** Implementação — F3 (PM Calculator)
-**Próxima sessão:** F3 — Cálculo de preço médio ponderado móvel
-**Código implementado:** P1 + P2 + F1 + F2 completos (commit 58fdba1)
+**Fase:** Implementação — F4 (Apuração Mensal)
+**Próxima sessão:** F4 — Apuração mensal IR (3 cestas, carry-forward, IRRF)
+**Código implementado:** P1 + P2 + F1 + F2 + F3 completos (commit 3e68b04)
 
 ## O que já foi feito
 
@@ -21,7 +21,7 @@
 - [x] P2 — Infraestrutura (commit 2f62fb3 — 2026-05-07)
 - [x] F1 — Parser PDF (commit dbf31c7 — 2026-05-08)
 - [x] F2 — Upload modal multi-arquivo (commit 58fdba1 — 2026-05-08)
-- [ ] F3 — PM Calculator
+- [x] F3 — PM Calculator (commit 3e68b04 — 2026-05-08)
 - [ ] F4 — Apuração mensal
 - [ ] F5 — Dashboard + hooks
 - [ ] F6 — Relatório PDF
@@ -64,7 +64,64 @@ Pendente:
 
 ---
 
-## Sessão F3 — o que criar (próxima)
+## Sessão F4 — o que criar (próxima)
+
+Objetivo: apurar o IR mensal por cesta (A_ST, A_DT, B_ST, B_DT), aplicar carry-forward
+de prejuízo, calcular DARF e salvar em `apuracoes_ir/{anoMes}`.
+
+```
+frontend/src/lib/ir/
+  apuracao-mensal.ts    ← apurarMes(uid, clienteId, anoMes) → ApuracaoMensalDoc
+                           recalcularApuracoesCompleto(uid, clienteId) → todos os meses
+```
+
+### Fluxo da apuração por mês
+
+Para cada `anoMes` ("YYYY-MM") com notas importadas:
+
+**1. Coleta de operações do mês**
+- Busca notas em `notas_corretagem` onde `anoMes == targetAnoMes`
+- Separa por cesta (A vs B) e por modalidade (ST vs DT) usando `isDayTrade` e `classeAtivo`
+
+**2. Resultado bruto por cesta/modalidade**
+```
+resultado_ST = Σ(vendas) - Σ(custosPM × qtd_vendida) - Σ(custoRateado_vendas)
+resultado_DT = Σ(vendas_DT) - Σ(precoCompra_DT × qtd) - Σ(custoRateado_DT)
+```
+Para DT: custo de aquisição = preço médio das compras DT do mesmo pregão
+
+**3. Isenção R$20k (APENAS Cesta A_ST)**
+- Soma `vendasAcoesSTemCentavos` das notas do mês (só ACAO + UNIT, nunca ETF/BDR/FII)
+- Se Σ_vendas_acoes_ST ≤ R$20.000 → resultado isento, mas carry-forward de prejuízo continua
+
+**4. Carry-forward de prejuízo**
+- Lê `saldo_prejuizo/{A_ST | A_DT | B_ST | B_DT}` do mês anterior
+- Compensa até o limite do ganho corrente
+- Atualiza `saldo_prejuizo` com novo saldo
+
+**5. Cálculo do DARF**
+- base = max(0, ganho - prejuizoCompensado) se não isento
+- irBruto = base × aliquota (0.15 ST, 0.20 DT)
+- irrfAcumulado = IRRF das notas do mês + saldo IRRF não compensado de meses anteriores
+- darfBruto = max(0, irBruto - irrfAcumulado)
+- se darfBruto < R$10 → acumula para o próximo mês (sem multa)
+- darfTotal = darfBruto + darfAcumulado de meses anteriores
+
+**6. Salva ApuracaoMensalDoc**
+- `apuracoes_ir/{anoMes}` com os 4 campos de cesta (cestaA_ST, A_DT, B_ST, B_DT)
+
+### Atenção ao implementar F4
+
+- Mês isento AINDA acumula/consome carry-forward de prejuízo (APENAS o DARF não é devido)
+- IRRF do mês corrente = soma de `irrfNormalEmCentavos` e `irrfDayTradeEmCentavos` das notas
+- IRRF não compensado NÃO transita entre anos (vai para DIRPF — registrar mas não acumular)
+- `vendasAcoesSTemCentavos` já está calculado em cada nota (soma apenas ACAO+UNIT)
+- O custo DT usa a média das compras DT do mesmo pregão (não o PM acumulado)
+- Ordenar meses ASC para processar carry-forward corretamente
+
+---
+
+## Sessão F3 — concluída (commit 3e68b04)
 
 Objetivo: calcular preço médio ponderado (PM) móvel por ticker após importação de notas.
 F3 é disparado automaticamente após F2 salvar notas no Firestore.
