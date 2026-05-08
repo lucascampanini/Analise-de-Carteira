@@ -9,6 +9,7 @@ import { getNotasCorretagem } from '@/lib/ir/firestore';
 import { usePosicoesIR, useResultadoMensal, useSaldoPrejuizo, useApuracoes } from '@/lib/ir/hooks';
 import { LIMITE_ISENCAO_ACOES_CENTAVOS, DARF_MINIMO_CENTAVOS } from '@/lib/ir/types/asset-types';
 import { UploadNotasModal } from '@/components/ir/UploadNotasModal';
+import { EventosCorporativosPanel } from '@/components/ir/EventosCorporativosPanel';
 import type { NotaCorretagemDoc } from '@/lib/ir/types/firestore-schema';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -148,7 +149,8 @@ export default function IRClientePage({
   const [modalOpen, setModalOpen] = useState(false);
   const [gerandoPDF, setGerandoPDF] = useState<string | null>(null); // anoMes em geração
 
-  const { apuracoes } = useApuracoes(user?.uid, clienteId);
+  const { apuracoes }  = useApuracoes(user?.uid, clienteId);
+  const { posicoes }   = usePosicoesIR(user?.uid, clienteId);
 
   const baixarPDF = async (anoMes: string) => {
     setGerandoPDF(anoMes);
@@ -202,6 +204,15 @@ export default function IRClientePage({
 
       {/* Cards de resumo IR */}
       {user && <IRResumoCards uid={user.uid} clienteId={clienteId} />}
+
+      {/* Eventos corporativos */}
+      {user && (
+        <EventosCorporativosPanel
+          uid={user.uid}
+          clienteId={clienteId}
+          tickers={posicoes.map((p) => p.ticker)}
+        />
+      )}
 
       {/* Tabela de notas */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm">

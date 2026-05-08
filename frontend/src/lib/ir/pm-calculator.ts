@@ -17,8 +17,9 @@ import {
 } from 'firebase/firestore';
 import { db } from '../firebase';
 import { TipoOperacao, REGRAS_POR_CLASSE } from './types/asset-types';
+import { getEventosConfirmados, aplicarEvento } from './eventos-corporativos';
 import type { AssetClass, CestaIR } from './types/asset-types';
-import type { NotaCorretagemDoc, OperacaoFirestore, PosicaoIRDoc } from './types/firestore-schema';
+import type { NotaCorretagemDoc, OperacaoFirestore, PosicaoIRDoc, EventoCorporativoDoc } from './types/firestore-schema';
 
 type PosicaoWrite = Omit<PosicaoIRDoc, 'ultimaAtualizacao'> & { ultimaAtualizacao: FieldValue };
 
@@ -55,31 +56,80 @@ function processarVenda(estado: EstadoPosicao, op: OperacaoFirestore): void {
 }
 
 /**
+ * Aplica um evento corporativo ao mapa de estados em memória.
+ * TROCA_TICKER: move o estado do ticker antigo para o novo.
+ * Demais: delega para aplicarEvento().
+ */
+function aplicarEventoAosMaps(
+  estados: Map<string, EstadoPosicao>,
+  evento: EventoCorporativoDoc,
+): void {
+  if (evento.tipo === 'TROCA_TICKER' && evento.tickerNovo) {
+    const estadoAntigo = estados.get(evento.ticker);
+    if (!estadoAntigo) return;
+    const proporcao = evento.proporcaoConversao ?? 1;
+    // Move para o novo ticker, ajustando quantidade pela proporção
+    const novoEstado: EstadoPosicao = {
+      ...estadoAntigo,
+      ticker:    evento.tickerNovo,
+      quantidade: Math.round(estadoAntigo.quantidade * proporcao),
+      // custo total proporcional (fusão parcial = perde a parte convertida)
+      custoTotalEmCentavos: Math.round(estadoAntigo.custoTotalEmCentavos * proporcao),
+    };
+    estados.delete(evento.ticker);
+    estados.set(evento.tickerNovo, novoEstado);
+    return;
+  }
+
+  const estado = estados.get(evento.ticker);
+  if (!estado) return; // ticker sem posição → evento não afeta nada
+
+  aplicarEvento(estado, evento);
+
+  // Se split/grupamento zerou a quantidade (erro de dados), remove
+  if (estado.quantidade <= 0) {
+    estados.delete(evento.ticker);
+  }
+}
+
+/**
  * Reconstrói posicoes_ir do zero para um cliente lendo todas as notas ativas.
- * Chamado após importar notas (UploadNotasModal) ou manualmente para corrigir PM.
+ * Aplica eventos corporativos confirmados na ordem cronológica correta.
+ * Chamado após importar notas (UploadNotasModal) ou confirmar um evento.
  */
 export async function recalcularPMCompleto(
   uid: string,
   clienteId: string,
 ): Promise<void> {
-  // ── 1. Carrega notas em ordem cronológica ────────────────────────────────
-  const notasSnap = await getDocs(
-    query(
+  // ── 1. Carrega notas e eventos em ordem cronológica ──────────────────────
+  const [notasSnap, eventosConfirmados] = await Promise.all([
+    getDocs(query(
       collection(db, 'users', uid, 'clientes', clienteId, 'notas_corretagem'),
       orderBy('dataPregao', 'asc'),
-    ),
-  );
+    )),
+    getEventosConfirmados(uid),
+  ]);
 
   const notas = notasSnap.docs
     .map((d) => ({ id: d.id, ...d.data() } as NotaCorretagemDoc))
-    .filter((n) => n.statusRetificacao === 'ATIVA'); // notas canceladas não entram no PM
+    .filter((n) => n.statusRetificacao === 'ATIVA');
+
+  // Eventos ordenados ASC por data para merge com notas
+  const eventos = [...eventosConfirmados].sort((a, b) => a.dataEvento.localeCompare(b.dataEvento));
+  let eventoIdx = 0;
 
   // ── 2. Reconstrói posições em memória ────────────────────────────────────
   const estados = new Map<string, EstadoPosicao>();
 
   for (const nota of notas) {
-    // Dentro de cada nota: compras primeiro, depois vendas.
-    // Isso garante que uma compra DT atualiza o PM antes da venda DT usá-lo.
+    // Antes de processar cada nota, aplica eventos que ocorreram ATÉ a data do pregão.
+    // Eventos são fatos históricos que ajustam as posições ANTES das operações do dia.
+    while (eventoIdx < eventos.length && eventos[eventoIdx].dataEvento <= nota.dataPregao) {
+      const evento = eventos[eventoIdx++];
+      aplicarEventoAosMaps(estados, evento);
+    }
+
+    // Dentro de cada nota: compras primeiro, depois vendas (DT correctness)
     const compras = nota.operacoes.filter((o) => o.tipo === TipoOperacao.COMPRA);
     const vendas  = nota.operacoes.filter((o) => o.tipo === TipoOperacao.VENDA);
 
@@ -104,6 +154,11 @@ export async function recalcularPMCompleto(
         processarVenda(estado, op);
       }
     }
+  }
+
+  // Aplica eventos que ficaram após a última nota (caso o assessor adicionou evento futuro)
+  while (eventoIdx < eventos.length) {
+    aplicarEventoAosMaps(estados, eventos[eventoIdx++]);
   }
 
   // ── 3. Persiste no Firestore (batch atômico) ─────────────────────────────

@@ -7,9 +7,9 @@
 
 ## Estado atual
 
-**Fase:** F7 concluído — MVP F1→F7 entregues
-**Próxima sessão:** F8 (eventos corporativos), F9 (futuros), F10 (opções completas) — todos opcionais
-**Código implementado:** P1 + P2 + F1 + F2 + F3 + F4 + F5 + F6 + F7 completos
+**Fase:** F8 concluído — todos os módulos P1→F8 entregues
+**Próxima sessão:** F9 (futuros/BMF), F10 (opções completas) — fases opcionais
+**Código implementado:** P1 + P2 + F1 + F2 + F3 + F4 + F5 + F6 + F7 + F8 completos
 
 ## O que já foi feito
 
@@ -25,8 +25,8 @@
 - [x] F4 — Apuração mensal (commit 32fe46c — 2026-05-08)
 - [x] F5 — Dashboard + hooks (commit b4f850f — 2026-05-08)
 - [x] F6 — Relatório PDF (commit 72569c5 — 2026-05-08)
-- [x] F7 — Parser Python (commit pendente — 2026-05-08)
-- [ ] F8 — Eventos corporativos
+- [x] F7 — Parser Python (commit 1f8cdcb — 2026-05-08)
+- [x] F8 — Eventos corporativos (commit pendente — 2026-05-08)
 
 ---
 
