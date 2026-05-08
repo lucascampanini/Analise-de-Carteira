@@ -7,9 +7,9 @@
 
 ## Estado atual
 
-**Fase:** Implementação — F1 (Parser PDF)
-**Próxima sessão:** F1 — Parser de notas Sinacor em browser
-**Código implementado:** P1 + P2 completos (commit 2f62fb3)
+**Fase:** Implementação — F2 (Upload modal)
+**Próxima sessão:** F2 — Upload modal multi-arquivo + fila de processamento
+**Código implementado:** P1 + P2 + F1 completos (commit dbf31c7)
 
 ## O que já foi feito
 
@@ -19,7 +19,7 @@
 - [x] Plano de sessões definido
 - [x] P1 — Schema canônico (commit 3739a06 — 2026-05-07)
 - [x] P2 — Infraestrutura (commit 2f62fb3 — 2026-05-07)
-- [ ] F1 — Parser PDF
+- [x] F1 — Parser PDF (commit dbf31c7 — 2026-05-08)
 - [ ] F2 — Upload modal multi-arquivo
 - [ ] F3 — PM Calculator
 - [ ] F4 — Apuração mensal
@@ -64,7 +64,47 @@ Pendente:
 
 ---
 
-## Sessão F1 — o que criar (próxima)
+## Sessão F2 — o que criar (próxima)
+
+Objetivo: upload modal multi-arquivo para notas Sinacor + fila de processamento.
+O assessor arrastar N PDFs, o sistema ordena por dataPregao e processa em sequência.
+
+```
+frontend/src/app/(crm)/ir/[clienteId]/
+  page.tsx                ← rota de entrada (importa UploadNotasModal lazy)
+
+frontend/src/components/ir/
+  UploadNotasModal.tsx    ← modal drag-drop, aceita múltiplos PDFs
+  NotaQueueItem.tsx       ← item da fila: arquivo, status, quality badge, erros
+  NotaRevisaoForm.tsx     ← formulário de correção manual (campos faltando)
+```
+
+### Fluxo do modal
+
+1. Usuário arrasta N arquivos PDF (ou clica para selecionar)
+2. Sistema valida extensão (.pdf) e tamanho (< 10MB cada)
+3. Para cada arquivo, `parseSinacorNota(arrayBuffer)` → ParsedNotaResult
+   - PDF protegido: pede senha (3 dígitos do CPF) → retry com password
+   - ExtractionQuality.IMAGEM → bloqueia importação desse arquivo
+   - BAIXA ou campos faltando → abre NotaRevisaoForm para correção manual
+4. Após revisão, salva no Firestore:
+   - `notas_corretagem/{nrNota}` — documento completo
+   - Ordem de processamento: ordenar por dataPregao ASC antes de salvar
+5. Feedback visual: barra de progresso por arquivo + resumo final
+
+### Atenção ao implementar F2
+
+- Importar `parseSinacorNota` com `dynamic(() => import(...), { ssr: false })`
+  pois pdfjs-dist não funciona em SSR (next.config tem output: "export")
+- Usar `URL.createObjectURL` para preview do PDF se necessário
+- O campo `password` da nota XP = primeiros 3 dígitos do CPF do cliente
+  (exibir hint na UI: "Senha: primeiros 3 dígitos do CPF")
+- Detectar nota duplicada: consultar Firestore por nrNota antes de salvar
+- Ordenar fila por dataPregao para garantir PM calculado na ordem correta (F3)
+
+---
+
+## Sessão F1 — concluída (commit dbf31c7)
 
 Objetivo: parser de notas Sinacor em TypeScript (browser, pdfjs-dist).
 Foco: extrair `ParsedNotaResult` de um PDF de nota XP/Clear/Rico.
