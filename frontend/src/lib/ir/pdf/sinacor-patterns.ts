@@ -56,4 +56,15 @@ export const PAT = {
   // ── BRL — encontra todos os valores monetários numa linha ─────────────────
   // Usado por extractLastBRL para pegar o valor mais à direita da linha
   qualquerBRL: /[\d.]+,\d{2}/g,
+
+  // ── BMF / Futuros ─────────────────────────────────────────────────────────
+  // Detecta início da seção de ajuste diário (muitas variações entre corretoras)
+  bmfAjusteSecao: /resumo\s+do\s+ajuste|ajuste\s+do\s+dia|resumo\s+ajuste/i,
+  // Linha com resultado líquido do ajuste (último valor + C/D = crédito ou débito)
+  bmfAjusteResultado: /resultado\s+(?:do\s+)?ajuste|resultado\s+l[íi]quido\s*(?:do\s+)?ajuste|total\s+(?:do\s+)?ajuste/i,
+  // IRRF retido sobre ajuste positivo (1% do resultado líquido diário)
+  bmfAjusteIRRF: /i\.?r\.?r\.?f\.?.*ajuste|ajuste.*i\.?r\.?r\.?f/i,
+  // Ticker de futuro: 2-4 letras + letra de mês (FGHJKMNQUVXZ) + 2 dígitos de ano
+  // Ex: WINV25, WDOZ25, BGIK25, DI1F25, INDV25
+  tickerFuturo: /^[A-Z]{2,4}[FGHJKMNQUVXZ]\d{2}$/,
 } as const;

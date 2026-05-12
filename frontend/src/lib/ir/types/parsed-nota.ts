@@ -64,8 +64,13 @@ export interface ParsedNotaResult {
   segmento: SegmentoNota;        // BOVESPA ou BMF
   cpfCliente?: string;           // extraído do rodapé (usado para validação)
 
-  // Operações realizadas no pregão
+  // Operações realizadas no pregão (Bovespa) — vazio para notas BMF puras
   operacoes: OperacaoParsed[];
+
+  // BMF/Futuros — resultado líquido do ajuste diário (crédito = +, débito = -)
+  // Preenchido quando segmento === BMF. É a fonte de P&L para futuros,
+  // pois contratos são marcados a mercado diariamente (não via compra/venda).
+  ajusteDiarioEmReais?: number;
 
   // Resumo financeiro
   resumo: ResumoFinanceiroParsed;

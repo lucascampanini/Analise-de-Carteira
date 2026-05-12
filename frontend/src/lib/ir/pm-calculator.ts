@@ -16,7 +16,7 @@ import {
   serverTimestamp, type FieldValue,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { TipoOperacao, REGRAS_POR_CLASSE } from './types/asset-types';
+import { TipoOperacao, REGRAS_POR_CLASSE, SegmentoNota } from './types/asset-types';
 import { getEventosConfirmados, aplicarEvento } from './eventos-corporativos';
 import type { AssetClass, CestaIR } from './types/asset-types';
 import type { NotaCorretagemDoc, OperacaoFirestore, PosicaoIRDoc, EventoCorporativoDoc } from './types/firestore-schema';
@@ -112,7 +112,8 @@ export async function recalcularPMCompleto(
 
   const notas = notasSnap.docs
     .map((d) => ({ id: d.id, ...d.data() } as NotaCorretagemDoc))
-    .filter((n) => n.statusRetificacao === 'ATIVA');
+    .filter((n) => n.statusRetificacao === 'ATIVA')
+    .filter((n) => n.segmento !== SegmentoNota.BMF); // futuros liquidam diariamente — sem PM
 
   // Eventos ordenados ASC por data para merge com notas
   const eventos = [...eventosConfirmados].sort((a, b) => a.dataEvento.localeCompare(b.dataEvento));

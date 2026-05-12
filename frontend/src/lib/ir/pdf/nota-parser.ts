@@ -263,14 +263,48 @@ function detectarSegmento(ops: OperacaoParsed[]): SegmentoNota {
     : SegmentoNota.BOVESPA;
 }
 
+// ─── BMF / Futuros ───────────────────────────────────────────────────────────
+
+/**
+ * Extrai o resultado líquido do ajuste diário de uma nota BMF.
+ * Retorna ajusteLiquido (+ = crédito, - = débito) e irrfAjuste retido.
+ */
+function parseAjusteDiario(lines: string[]): { ajusteLiquido: number; irrfAjuste: number } {
+  let inSection = false;
+  let ajusteLiquido = 0;
+  let irrfAjuste = 0;
+
+  for (const line of lines) {
+    if (!inSection) {
+      if (PAT.bmfAjusteSecao.test(line)) inSection = true;
+      continue;
+    }
+
+    if (PAT.bmfAjusteResultado.test(line)) {
+      const valor = extractLastBRL(line);
+      const trimmed = line.trimEnd();
+      const dc = trimmed.endsWith(' D') ? 'D' : 'C';
+      ajusteLiquido = dc === 'D' ? -valor : valor;
+    }
+
+    if (PAT.bmfAjusteIRRF.test(line)) {
+      irrfAjuste = extractLastBRL(line);
+    }
+  }
+
+  return { ajusteLiquido, irrfAjuste };
+}
+
 function computeQualidade(
   hasDate: boolean,
   hasNota: boolean,
   ops: OperacaoParsed[],
   camposFaltando: string[],
+  ajusteDiario?: number,
 ): ExtractionQuality {
-  // Import dinâmico do enum evita circular — valores são strings, cast é seguro
-  if (ops.length === 0) {
+  // Nota com conteúdo = tem operações OU tem ajuste diário (nota BMF)
+  const hasContent = ops.length > 0 || ajusteDiario !== undefined;
+  if (!hasContent) {
     return (hasDate || hasNota ? 'BAIXA' : 'IMAGEM') as ExtractionQuality;
   }
   if (!hasDate || !hasNota) return 'BAIXA' as ExtractionQuality;
@@ -325,11 +359,30 @@ export async function parseSinacorNota(
   detectarDayTrade(operacoes);
   const resumo = parseResumoFinanceiro(lines);
 
+  // BMF/Futuros: extrai ajuste diário quando a nota não tem operações Bovespa padrão
+  // ou quando o segmento é BMF (ticker FUTURO nas ops).
+  const segmento = detectarSegmento(operacoes);
+  let ajusteDiarioEmReais: number | undefined;
+
+  if (segmento === SegmentoNota.BMF || operacoes.some((o) => o.classeAtivo === AssetClass.FUTURO)) {
+    const { ajusteLiquido, irrfAjuste } = parseAjusteDiario(lines);
+    if (ajusteLiquido !== 0 || irrfAjuste !== 0) {
+      ajusteDiarioEmReais = ajusteLiquido;
+      // Injeta IRRF do ajuste em irrfDayTrade — apuração capta automaticamente
+      if (resumo.irrfDayTrade === 0 && irrfAjuste > 0) {
+        resumo.irrfDayTrade = irrfAjuste;
+      }
+    }
+  }
+
   const camposFaltando: string[] = [];
   if (!header.dataPregaoBR)   camposFaltando.push('dataPregao');
   if (!header.nrNota)         camposFaltando.push('nrNota');
   if (!header.cnpjCorretora)  camposFaltando.push('cnpjCorretora');
-  if (operacoes.length === 0) camposFaltando.push('operacoes');
+  // Nota BMF com ajuste é válida mesmo sem operações individuais
+  if (operacoes.length === 0 && ajusteDiarioEmReais === undefined) {
+    camposFaltando.push('operacoes');
+  }
   if (resumo.taxaOperacional === 0 && resumo.emolumentos === 0) {
     camposFaltando.push('resumoFinanceiro');
   }
@@ -343,12 +396,16 @@ export async function parseSinacorNota(
       avisos.push(`Opção ${op.ticker}: ativo-objeto "${op.tickerAtivo}" pode precisar revisão`);
     }
   }
+  if (segmento === SegmentoNota.BMF && ajusteDiarioEmReais === undefined) {
+    avisos.push('Nota BMF: seção de ajuste diário não encontrada — verifique o PDF');
+  }
 
   const qualidade = computeQualidade(
     Boolean(header.dataPregaoBR),
     Boolean(header.nrNota),
     operacoes,
     camposFaltando,
+    ajusteDiarioEmReais,
   );
 
   // Confiança cai 15% por campo crítico faltando (mínimo 0)
@@ -360,9 +417,10 @@ export async function parseSinacorNota(
     anoMes: header.dataPregaoBR ? toAnoMes(header.dataPregaoBR) : '',
     corretora: header.corretora,
     cnpjCorretora: header.cnpjCorretora,
-    segmento: detectarSegmento(operacoes),
+    segmento,
     cpfCliente: header.cpfCliente,
     operacoes,
+    ...(ajusteDiarioEmReais !== undefined ? { ajusteDiarioEmReais } : {}),
     resumo,
     parser: {
       tipo: 'js-pdfjs',

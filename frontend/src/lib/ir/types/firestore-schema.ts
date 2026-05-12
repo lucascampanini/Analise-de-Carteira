@@ -68,6 +68,11 @@ export interface NotaCorretagemDoc {
   notaRetificadoraId?: string;         // se RETIFICADA, aponta para a retificadora
   notaOriginalId?: string;             // se RETIFICADORA, aponta para a original
 
+  // BMF/Futuros: resultado líquido do ajuste diário (+ = crédito, - = débito)
+  // Preenchido somente quando segmento === BMF. É o P&L real dos contratos futuros.
+  // Futuros não têm PM — a apuração usa este campo diretamente como ganho/prejuízo.
+  ajusteDiarioEmCentavos?: number;
+
   // Rastreabilidade do parser
   parserTipo: ParserTipo;
   parserVersao: string;

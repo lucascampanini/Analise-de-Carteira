@@ -79,6 +79,10 @@ function toWriteDoc(
     segmento: parsed.segmento,
     ...(parsed.cpfCliente ? { cpfCliente: parsed.cpfCliente } : {}),
     operacoes: ops,
+    // BMF/Futuros: converte ajuste diário de reais para centavos
+    ...(parsed.ajusteDiarioEmReais !== undefined
+      ? { ajusteDiarioEmCentavos: reaisParaCentavos(parsed.ajusteDiarioEmReais) }
+      : {}),
     resumoFinanceiro: resumoFirestore,
     statusRetificacao: 'ATIVA',
     parserTipo: parsed.parser.tipo,

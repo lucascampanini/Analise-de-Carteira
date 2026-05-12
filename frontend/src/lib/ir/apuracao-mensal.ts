@@ -16,7 +16,7 @@ import {
   serverTimestamp, type FieldValue,
 } from 'firebase/firestore';
 import { db } from '../firebase';
-import { AssetClass, CestaIR, TipoOperacao, REGRAS_POR_CLASSE, LIMITE_ISENCAO_ACOES_CENTAVOS, DARF_MINIMO_CENTAVOS } from './types/asset-types';
+import { AssetClass, CestaIR, SegmentoNota, TipoOperacao, REGRAS_POR_CLASSE, LIMITE_ISENCAO_ACOES_CENTAVOS, DARF_MINIMO_CENTAVOS } from './types/asset-types';
 import { IR_PATHS } from './types/firestore-schema';
 import type {
   NotaCorretagemDoc,
@@ -196,54 +196,66 @@ export async function apurarMes(
   };
 
   for (const nota of notas) {
-    // DT: calcula PM das compras DT por ticker para este pregão
-    const pmDTPorTicker = new Map<string, number>();
-    const comprasDT = nota.operacoes.filter((o) => o.tipo === TipoOperacao.COMPRA && o.isDayTrade);
-    for (const c of comprasDT) {
-      const totalAntes = (pmDTPorTicker.get(c.ticker + '_custo') ?? 0) + c.precoEmCentavos * c.quantidade;
-      const qtdAntes   = (pmDTPorTicker.get(c.ticker + '_qtd')   ?? 0) + c.quantidade;
-      pmDTPorTicker.set(c.ticker + '_custo', totalAntes);
-      pmDTPorTicker.set(c.ticker + '_qtd',   qtdAntes);
-    }
-    const pmDT = (ticker: string): number => {
-      const custo = pmDTPorTicker.get(ticker + '_custo') ?? 0;
-      const qtd   = pmDTPorTicker.get(ticker + '_qtd')   ?? 1;
-      return qtd > 0 ? Math.round(custo / qtd) : 0;
-    };
+    // ── BMF/Futuros: ajuste diário como P&L da Cesta A_DT ────────────────────
+    // Contratos futuros são marcados a mercado diariamente — o P&L não vem do
+    // preço de compra/venda mas sim do ajuste retido/cobrado pela câmara.
+    if (nota.segmento === SegmentoNota.BMF && nota.ajusteDiarioEmCentavos !== undefined) {
+      const ajuste = nota.ajusteDiarioEmCentavos;
+      aA_DT.ganhoLiquidoEmCentavos += ajuste;
+      // Registra como venda bruta apenas se positivo (crédito ao cliente)
+      if (ajuste > 0) aA_DT.vendasBrutasEmCentavos += ajuste;
+      // IRRF do ajuste → irrfDayTradeEmCentavos (capturado logo abaixo)
+    } else {
+      // ── Bovespa: processa operação a operação com PM ────────────────────────
+      // DT: calcula PM das compras DT por ticker para este pregão
+      const pmDTPorTicker = new Map<string, number>();
+      const comprasDT = nota.operacoes.filter((o) => o.tipo === TipoOperacao.COMPRA && o.isDayTrade);
+      for (const c of comprasDT) {
+        const totalAntes = (pmDTPorTicker.get(c.ticker + '_custo') ?? 0) + c.precoEmCentavos * c.quantidade;
+        const qtdAntes   = (pmDTPorTicker.get(c.ticker + '_qtd')   ?? 0) + c.quantidade;
+        pmDTPorTicker.set(c.ticker + '_custo', totalAntes);
+        pmDTPorTicker.set(c.ticker + '_qtd',   qtdAntes);
+      }
+      const pmDT = (ticker: string): number => {
+        const custo = pmDTPorTicker.get(ticker + '_custo') ?? 0;
+        const qtd   = pmDTPorTicker.get(ticker + '_qtd')   ?? 1;
+        return qtd > 0 ? Math.round(custo / qtd) : 0;
+      };
 
-    // Acumula por operação
-    for (const op of nota.operacoes) {
-      const dest = tipoCesta(op);
-      if (!dest) continue;
+      // Acumula por operação
+      for (const op of nota.operacoes) {
+        const dest = tipoCesta(op);
+        if (!dest) continue;
 
-      const acum = dest.cesta === CestaIR.A
-        ? (dest.isDT ? aA_DT : aA_ST)
-        : (dest.isDT ? aB_DT : aB_ST);
+        const acum = dest.cesta === CestaIR.A
+          ? (dest.isDT ? aA_DT : aA_ST)
+          : (dest.isDT ? aB_DT : aB_ST);
 
-      if (op.tipo === TipoOperacao.VENDA) {
-        acum.vendasBrutasEmCentavos += op.valorBrutoEmCentavos;
+        if (op.tipo === TipoOperacao.VENDA) {
+          acum.vendasBrutasEmCentavos += op.valorBrutoEmCentavos;
 
-        // vendas de ACAO+UNIT ST para o limite R$20k
-        if (!op.isDayTrade && (op.classeAtivo === AssetClass.ACAO || op.classeAtivo === AssetClass.UNIT)) {
-          aA_ST.vendasAcoesSTemCentavos += op.valorBrutoEmCentavos;
-        }
+          // vendas de ACAO+UNIT ST para o limite R$20k
+          if (!op.isDayTrade && (op.classeAtivo === AssetClass.ACAO || op.classeAtivo === AssetClass.UNIT)) {
+            aA_ST.vendasAcoesSTemCentavos += op.valorBrutoEmCentavos;
+          }
 
-        // ganho da venda
-        const pm = op.isDayTrade ? pmDT(op.ticker) : await carregarPM(op.ticker);
-        acum.ganhoLiquidoEmCentavos += calcularGanhoVenda(op, pm);
-      } else {
-        // compras: custo rateado entra negativo no resultado (custo de aquisição)
-        // não afeta ganho diretamente — já está embutido no PM
-        // mas compras DT têm custoRateado que reduz o resultado DT
-        if (op.isDayTrade) {
-          acum.ganhoLiquidoEmCentavos -= op.custoRateadoEmCentavos;
+          // ganho da venda
+          const pm = op.isDayTrade ? pmDT(op.ticker) : await carregarPM(op.ticker);
+          acum.ganhoLiquidoEmCentavos += calcularGanhoVenda(op, pm);
+        } else {
+          // compras: custo rateado entra negativo no resultado (custo de aquisição)
+          // não afeta ganho diretamente — já está embutido no PM
+          // mas compras DT têm custoRateado que reduz o resultado DT
+          if (op.isDayTrade) {
+            acum.ganhoLiquidoEmCentavos -= op.custoRateadoEmCentavos;
+          }
         }
       }
     }
 
-    // IRRF da nota: divide entre ST e DT (e entre cestas proporcionalmente)
+    // IRRF aplica para todas as notas (BMF e Bovespa)
+    // Para BMF: irrfDayTradeEmCentavos já contém IRRF do ajuste (injetado pelo parser)
     // Simplificação MVP: IRRF normal → Cesta A_ST; IRRF DT → Cesta A_DT
-    // FII também tem IRRF, mas normalmente mínimo — vai para B_ST
     aA_ST.irrfEmCentavos += nota.resumoFinanceiro.irrfNormalEmCentavos;
     aA_DT.irrfEmCentavos += nota.resumoFinanceiro.irrfDayTradeEmCentavos;
   }
