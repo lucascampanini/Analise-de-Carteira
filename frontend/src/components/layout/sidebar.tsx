@@ -3,7 +3,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import {
-  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart, FolderInput, Search, Calculator, Star, LineChart,
+  LayoutDashboard, Users, Bell, Calendar, Target, Briefcase, TrendingUp, LogOut, BarChart2, PieChart, FolderInput, Search, Calculator, Star, LineChart, Receipt,
 } from "lucide-react";
 
 const nav = [
@@ -23,6 +23,7 @@ const nav = [
 const navExterno = [
   { href: "https://simulador-consorcio-rho.vercel.app/", icon: Calculator, label: "Consórcio", externo: true  },
   { href: "/projecao",                                   icon: LineChart,   label: "Projeção",  externo: false },
+  { href: "/ir",                                         icon: Receipt,     label: "IR",        externo: false },
 ];
 
 export function Sidebar() {

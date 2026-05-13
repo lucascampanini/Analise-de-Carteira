@@ -3,9 +3,10 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
-import { Upload, AlertTriangle, TrendingDown, BarChart2, Calendar, FileDown } from 'lucide-react';
+import { Upload, AlertTriangle, TrendingDown, BarChart2, Calendar, FileDown, Receipt, ChevronRight } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
+import { getClientes } from '@/lib/firestore';
 import { getNotasCorretagem } from '@/lib/ir/firestore';
 import { usePosicoesIR, useResultadoMensal, useSaldoPrejuizo, useApuracoes } from '@/lib/ir/hooks';
 import { LIMITE_ISENCAO_ACOES_CENTAVOS, DARF_MINIMO_CENTAVOS } from '@/lib/ir/types/asset-types';
@@ -39,6 +40,73 @@ function brl(centavos: number) {
 function anoMesAtual(): string {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// ─── Seletor de cliente (exibido quando /ir é acessado sem clienteId) ────────
+
+function IRClientePicker() {
+  const { user } = useAuth();
+  const [clientes, setClientes] = useState<Array<{ id: string; nome: string; codigo_conta: string }>>([]);
+  const [loading, setLoading] = useState(true);
+  const [busca, setBusca] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    getClientes(user.uid).then((data) => {
+      setClientes(
+        (data as Array<{ id: string; nome: string; codigo_conta: string }>)
+          .sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
+      );
+      setLoading(false);
+    });
+  }, [user]);
+
+  const norm = (s: string) =>
+    s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+
+  const filtrados = busca.trim()
+    ? clientes.filter((c) => norm(c.nome).includes(norm(busca)) || c.codigo_conta.includes(busca))
+    : clientes;
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div className="flex items-center gap-3">
+        <Receipt size={22} className="text-svn-ruby shrink-0" />
+        <h1 className="text-2xl font-bold text-slate-800">Apuração de IR</h1>
+      </div>
+      <p className="text-sm text-slate-500">Selecione um cliente para acessar o módulo de IR sobre notas de corretagem.</p>
+
+      <input
+        type="text"
+        placeholder="Buscar cliente…"
+        value={busca}
+        onChange={(e) => setBusca(e.target.value)}
+        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby/30"
+      />
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
+        {loading ? (
+          <div className="p-8 text-center text-slate-400 text-sm">Carregando clientes…</div>
+        ) : filtrados.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-sm">Nenhum cliente encontrado.</div>
+        ) : (
+          filtrados.map((c) => (
+            <Link
+              key={c.id}
+              href={`/ir?clienteId=${c.codigo_conta}`}
+              className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors group"
+            >
+              <div>
+                <p className="text-sm font-medium text-slate-800 group-hover:text-svn-ruby transition-colors">{c.nome}</p>
+                <p className="text-xs text-slate-400 font-mono mt-0.5">{c.codigo_conta}</p>
+              </div>
+              <ChevronRight size={16} className="text-slate-300 group-hover:text-svn-ruby transition-colors" />
+            </Link>
+          ))
+        )}
+      </div>
+    </div>
+  );
 }
 
 // ─── Sub-componente: cards de resumo IR ──────────────────────────────────────
@@ -182,12 +250,7 @@ function IRPageInner() {
   const nomeCliente = cliente?.nome || clienteId;
 
   if (!clienteId) {
-    return (
-      <div className="p-8 text-center text-slate-400 text-sm">
-        Cliente não especificado.{' '}
-        <Link href="/clientes" className="text-svn-ruby underline">Voltar para Clientes</Link>
-      </div>
-    );
+    return <IRClientePicker />;
   }
 
   return (
