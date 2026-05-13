@@ -426,6 +426,10 @@ function ClientesLista({
                           className="text-emerald-600 hover:text-emerald-800 font-medium text-xs whitespace-nowrap">
                           Carteira →
                         </Link>
+                        <Link href={`/ir/${c.codigo_conta}`}
+                          className="text-blue-600 hover:text-blue-800 font-medium text-xs whitespace-nowrap">
+                          IR →
+                        </Link>
                         <button onClick={() => onSelectConta(c.codigo_conta)}
                           className="text-svn-ruby hover:text-blue-800 font-medium text-xs whitespace-nowrap">
                           Perfil →
