@@ -3,8 +3,9 @@ import type { NextConfig } from "next";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH || "";
 
 const nextConfig: NextConfig = {
-  // output: "export" removido — Vercel suporta SSR/rotas dinâmicas nativamente.
-  // Static export exigiria generateStaticParams() em /ir/[clienteId] e outras rotas.
+  output: "export",
+  basePath,
+  assetPrefix: basePath,
   trailingSlash: true,
   images: { unoptimized: true },
 

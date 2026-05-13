@@ -1,5 +1,6 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import { Upload, AlertTriangle, TrendingDown, BarChart2, Calendar, FileDown } from 'lucide-react';
@@ -51,20 +52,17 @@ function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
   const loading = pLoading || aLoading || sLoading;
   if (loading) return <div className="text-xs text-slate-400 py-2">Calculando…</div>;
 
-  // DARF do mês: soma dos 4 darfTotalEmCentavos (só mostra se >= R$10)
   const darfTotal = apuracao
     ? apuracao.cestaA_ST.darfTotalEmCentavos + apuracao.cestaA_DT.darfTotalEmCentavos
       + apuracao.cestaB_ST.darfTotalEmCentavos + apuracao.cestaB_DT.darfTotalEmCentavos
     : 0;
   const darfDevido = darfTotal >= DARF_MINIMO_CENTAVOS;
 
-  // Alerta R$20k: vendas ACAO+UNIT ST acumuladas no mês
   const vendasAcoes = apuracao?.cestaA_ST.vendasAcoesSTemCentavos ?? 0;
   const pctIsencao  = Math.min(100, Math.round((vendasAcoes / LIMITE_ISENCAO_ACOES_CENTAVOS) * 100));
   const proximoLimite = pctIsencao >= 70 && pctIsencao < 100;
   const atingiuLimite = vendasAcoes > LIMITE_ISENCAO_ACOES_CENTAVOS;
 
-  // Posições abertas
   const totalPosicoes = posicoes.length;
   const plTotal = posicoes.reduce((acc, p) => acc + p.custoTotalEmCentavos, 0);
 
@@ -133,24 +131,21 @@ function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
   );
 }
 
-// ─── Página principal ─────────────────────────────────────────────────────────
+// ─── Conteúdo da página (usa useSearchParams — requer Suspense no export) ────
 
-export default function IRClientePage({
-  params,
-}: {
-  params: { clienteId: string };
-}) {
-  const { clienteId } = params;
+function IRPageInner() {
+  const searchParams = useSearchParams();
+  const clienteId = searchParams.get('clienteId') ?? '';
   const { user } = useAuth();
 
   const [cliente, setCliente] = useState<Record<string, string> | null>(null);
   const [notas, setNotas] = useState<NotaCorretagemDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [gerandoPDF, setGerandoPDF] = useState<string | null>(null); // anoMes em geração
+  const [gerandoPDF, setGerandoPDF] = useState<string | null>(null);
 
-  const { apuracoes }  = useApuracoes(user?.uid, clienteId);
-  const { posicoes }   = usePosicoesIR(user?.uid, clienteId);
+  const { apuracoes } = useApuracoes(user?.uid, clienteId);
+  const { posicoes }  = usePosicoesIR(user?.uid, clienteId);
 
   const baixarPDF = async (anoMes: string) => {
     setGerandoPDF(anoMes);
@@ -165,7 +160,7 @@ export default function IRClientePage({
   };
 
   const carregarDados = async () => {
-    if (!user) return;
+    if (!user || !clienteId) return;
     setLoading(true);
     try {
       const [clienteSnap, notasData] = await Promise.all([
@@ -185,6 +180,15 @@ export default function IRClientePage({
   }, [user, clienteId]);
 
   const nomeCliente = cliente?.nome || clienteId;
+
+  if (!clienteId) {
+    return (
+      <div className="p-8 text-center text-slate-400 text-sm">
+        Cliente não especificado.{' '}
+        <Link href="/clientes" className="text-svn-ruby underline">Voltar para Clientes</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -340,5 +344,15 @@ export default function IRClientePage({
         onSaved={() => { setModalOpen(false); carregarDados(); }}
       />
     </div>
+  );
+}
+
+// ─── Export default com Suspense (obrigatório para useSearchParams em static export) ──
+
+export default function IRPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-slate-400 text-sm">Carregando…</div>}>
+      <IRPageInner />
+    </Suspense>
   );
 }
