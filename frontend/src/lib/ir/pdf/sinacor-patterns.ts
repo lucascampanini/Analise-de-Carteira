@@ -67,4 +67,18 @@ export const PAT = {
   // Ticker de futuro: 2-4 letras + letra de mês (FGHJKMNQUVXZ) + 2 dígitos de ano
   // Ex: WINV25, WDOZ25, BGIK25, DI1F25, INDV25
   tickerFuturo: /^[A-Z]{2,4}[FGHJKMNQUVXZ]\d{2}$/,
+
+  // ── Opções ────────────────────────────────────────────────────────────────
+  // Ticker B3: 4 letras + 0-2 dígitos + letra de vencimento (A-X) + strike inteiro.
+  // Calls: A-L (jan-dez); Puts: M-X (jan-dez).
+  // Captura: grupo 1 = base (ex: "PETR"), grupo 2 = dígitos (ex: "4", "11" ou ""),
+  //          grupo 3 = letra de vencimento, grupo 4 = strike.
+  // Ex: PETR4A150, VALE3M12000, KLBNA290, BOVA11C8500, SANB11D2400
+  tickerOpcaoB3: /^([A-Z]{4})(\d{0,2})([A-X])(\d+)$/,
+
+  // Linha de exercício de opção na nota Sinacor (diversas corretoras).
+  // Aparece quando o titular exerce uma call/put antes ou no vencimento.
+  // Nesse caso o ativo-objeto entra na carteira pelo preço do strike — o prêmio
+  // pago anteriormente integra o PM, mas NÃO aparece nesta nota (limitação MVP).
+  exercicioOpcao: /exerc[ií]cio\s+(?:de\s+)?op[çc][ãa]o|exerc\.?\s+de\s+op[çc]|exerc\.?\s+op[çc]/i,
 } as const;

@@ -41,13 +41,33 @@ const FUTURES_PREFIXES = new Set([
   'ICF', 'ISP', 'OC1', 'OZ1', 'CCM', 'ETH', 'EUR', 'GBP', 'JPY',
 ]);
 
-// Opções: 4 letras de ativo + opcional dígito + letra de vencimento A-X/L
+// Opções: 4 letras + 0-2 dígitos + letra de vencimento A-X (calls A-L, puts M-X) + strike
 const OPCAO_PATTERN = /^[A-Z]{4}\d{0,2}[A-X]\d+$/;
 
 // Extrai sufixo numérico final do ticker (ex: "PETR4" → "4", "MXRF11" → "11")
 function numericSuffix(ticker: string): string {
   const m = ticker.match(/(\d+)$/);
   return m ? m[1] : '';
+}
+
+/**
+ * Extrai o ticker do ativo-objeto de um ticker de opção B3.
+ *
+ * Exemplos:
+ *   PETR4A150   → "PETR4"
+ *   VALE3M12000 → "VALE3"
+ *   BOVA11C8500 → "BOVA11"
+ *   KLBNA290    → "KLBN"   (sem dígito — ativo-objeto ambíguo, aviso na UI)
+ *   SANB11D2400 → "SANB11"
+ *
+ * Se o padrão não casar, retorna as 4 primeiras letras como fallback.
+ */
+export function extrairAtivoObjeto(tickerOpcao: string): string {
+  const m = tickerOpcao.match(/^([A-Z]{4})(\d{0,2})[A-X]\d+$/);
+  if (!m) return tickerOpcao.slice(0, 4);
+  const base = m[1];
+  const digits = m[2];
+  return digits ? base + digits : base;
 }
 
 export type TipoMercado =

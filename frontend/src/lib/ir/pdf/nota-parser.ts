@@ -12,7 +12,7 @@
 // no Firestore (reaisParaCentavos em utils/money.ts).
 
 import { loadPDF } from './pdfjs-loader';
-import { classifyAsset } from '../asset-classifier';
+import { classifyAsset, extrairAtivoObjeto } from '../asset-classifier';
 import { AssetClass, SegmentoNota, TipoOperacao } from '../types/asset-types';
 import type {
   ExtractionQuality,
@@ -149,8 +149,8 @@ function parseOperationLine(line: string): OperacaoParsed | null {
   const precoUnitario = parseBRL(precoStr);
   const valorBruto = parseBRL(valorStr);
 
-  // Ativo-objeto de opções: primeiras 4 letras do código da opção
-  const tickerAtivo = classeAtivo === AssetClass.OPCAO ? ticker.slice(0, 4) : undefined;
+  // Ativo-objeto de opções: extrai base + dígitos do código (PETR4A150→PETR4, BOVA11C8500→BOVA11)
+  const tickerAtivo = classeAtivo === AssetClass.OPCAO ? extrairAtivoObjeto(ticker) : undefined;
 
   // Campo Obs: "#" é marcador day-trade em algumas corretoras (Clear/XP)
   const tokens = middle.trim().split(/\s+/);
@@ -393,9 +393,24 @@ export async function parseSinacorNota(
       avisos.push(`Ticker não classificado: ${op.ticker}`);
     }
     if (op.classeAtivo === AssetClass.OPCAO && op.tickerAtivo) {
-      avisos.push(`Opção ${op.ticker}: ativo-objeto "${op.tickerAtivo}" pode precisar revisão`);
+      // Avisa apenas quando o ativo-objeto não tem dígito (ex: KLBN sem sufixo numérico)
+      // — o assessor precisa confirmar se é KLBN3, KLBN4, etc.
+      if (!/\d/.test(op.tickerAtivo)) {
+        avisos.push(`Opção ${op.ticker}: ativo-objeto "${op.tickerAtivo}" está sem sufixo — confirme o ticker (ex: ${op.tickerAtivo}3 ou ${op.tickerAtivo}4)`);
+      }
     }
   }
+
+  // Exercício de opção: ativo entra pelo strike, mas o prêmio pago NÃO aparece nesta nota.
+  // O PM das ações adquiridas ficará subavaliado — assessor deve corrigir manualmente.
+  const temExercicio = lines.some((l) => PAT.exercicioOpcao.test(l));
+  if (temExercicio) {
+    avisos.push(
+      'Exercício de opção detectado: o PM das ações adquiridas via exercício de call pode '
+      + 'não incluir o prêmio pago — ajuste o PM manualmente em posicoes_ir se necessário',
+    );
+  }
+
   if (segmento === SegmentoNota.BMF && ajusteDiarioEmReais === undefined) {
     avisos.push('Nota BMF: seção de ajuste diário não encontrada — verifique o PDF');
   }

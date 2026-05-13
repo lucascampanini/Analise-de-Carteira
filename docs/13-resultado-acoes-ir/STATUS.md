@@ -1,15 +1,15 @@
 # Status — Módulo IR em Notas Sinacor
 
 > Atualizar este arquivo ao fim de cada sessão de desenvolvimento.
-> Última atualização: 2026-05-07
+> Última atualização: 2026-05-13
 
 ---
 
 ## Estado atual
 
-**Fase:** F8 concluído — todos os módulos P1→F8 entregues
-**Próxima sessão:** F9 (futuros/BMF), F10 (opções completas) — fases opcionais
-**Código implementado:** P1 + P2 + F1 + F2 + F3 + F4 + F5 + F6 + F7 + F8 completos
+**Fase:** F10 concluído — todos os módulos P1→F10 entregues
+**Próxima sessão:** não há fases planejadas — módulo completo para o MVP
+**Código implementado:** P1 + P2 + F1 + F2 + F3 + F4 + F5 + F6 + F7 + F8 + F9 + F10 completos
 
 ## O que já foi feito
 
@@ -26,7 +26,9 @@
 - [x] F5 — Dashboard + hooks (commit b4f850f — 2026-05-08)
 - [x] F6 — Relatório PDF (commit 72569c5 — 2026-05-08)
 - [x] F7 — Parser Python (commit 1f8cdcb — 2026-05-08)
-- [x] F8 — Eventos corporativos (commit pendente — 2026-05-08)
+- [x] F8 — Eventos corporativos (commit 64d2b4c — 2026-05-08)
+- [x] F9 — Futuros/BMF (commit e25897e — 2026-05-12)
+- [x] F10 — Opções completas (commit pendente — 2026-05-13)
 
 ---
 
