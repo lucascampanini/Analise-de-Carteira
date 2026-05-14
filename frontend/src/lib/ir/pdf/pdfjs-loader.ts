@@ -2,13 +2,14 @@
 // Inicialização centralizada do pdfjs-dist.
 // DEVE ser importado apenas em Client Components (browser).
 //
-// Configurações obrigatórias para PDFs de notas Sinacor:
-// - cMapUrl: resolve corrupção de acentos (ã, ç, é) em fontes Type1/Type3
-// - standardFontDataUrl: resolve PDFs sem fontes embutidas
-// - workerSrc: Web Worker em arquivo separado (não bloqueia a UI)
+// IMPORTANTE — worker via new URL():
+//   O webpack precisa emitir o worker como asset para que o protocolo de
+//   mensagens entre main-thread (bundlado) e worker seja compatível.
+//   Usar um arquivo "cru" de public/ quebra a comunicação quando o webpack
+//   transforma o código principal do pdfjs — os itens de texto voltam vazios.
 //
-// Fonte: docs/13-resultado-acoes-ir/07-analise-gaps-bloqueadores/ gaps C1 e E2
-// Fonte: docs/13-resultado-acoes-ir/01-estrutura-notas-sinacor/ seção 11.2
+// cMapUrl e standardFontDataUrl continuam sendo servidos de public/ pois são
+// arquivos estáticos que o pdfjs-dist carrega por fetch, não via Worker.
 
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 
@@ -19,10 +20,14 @@ async function initPdfjs() {
   if (initialized) return;
 
   const lib = await import('pdfjs-dist');
-  const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 
-  // Worker copiado para public/ pelo script scripts/copy-pdfjs-assets.mjs
-  lib.GlobalWorkerOptions.workerSrc = `${basePath}/pdf.worker.min.mjs`;
+  // new URL(..., import.meta.url) → webpack emite o worker no output e
+  // garante que a versão/protocolo seja idêntica à do bundle principal.
+  // Isso elimina o mismatch entre "pdfjs bundlado" e "worker cru de public/".
+  lib.GlobalWorkerOptions.workerSrc = new URL(
+    'pdfjs-dist/build/pdf.worker.min.mjs',
+    import.meta.url,
+  ).href;
 
   initialized = true;
 }
@@ -55,12 +60,9 @@ export async function loadPDF(
   const loadingTask = getDocument({
     data,
     password: options.password,
-    // OBRIGATÓRIO: sem cMapUrl, acentos em PDFs Sinacor aparecem corrompidos
     cMapUrl: `${basePath}/cmaps/`,
     cMapPacked: true,
-    // Fontes padrão para PDFs sem fontes embutidas
     standardFontDataUrl: `${basePath}/standard_fonts/`,
-    // Desabilita range requests — notas Sinacor são pequenas (< 500KB)
     disableRange: true,
     disableStream: true,
   });
@@ -94,26 +96,15 @@ export async function extractTextFromPDF(data: ArrayBuffer, password?: string): 
   return parts.join('\n');
 }
 
-/**
- * Detecta se o PDF é uma imagem digitalizada (sem texto extraível).
- * PDFs-imagem não podem ser processados automaticamente.
- *
- * Fonte: docs/13-resultado-acoes-ir/07-analise-gaps-bloqueadores/ gap C2
- */
 export function isPDFImagem(textoExtraido: string): boolean {
   return textoExtraido.trim().length < 100;
 }
 
-/**
- * Avalia a qualidade da extração de texto do PDF (0–1).
- * Usado para decidir se exige revisão manual do assessor.
- */
 export function avaliarQualidadeExtracao(texto: string): number {
-  if (texto.trim().length < 100) return 0;       // PDF-imagem
-  if (texto.length < 500) return 0.3;             // texto insuficiente
+  if (texto.trim().length < 100) return 0;
+  if (texto.length < 500) return 0.3;
   const temTicker = /[A-Z]{4}\d{1,2}/.test(texto);
   const temData = /\d{2}\/\d{2}\/\d{4}/.test(texto);
   const temValor = /\d+[.,]\d{2}/.test(texto);
-  const score = (temTicker ? 0.4 : 0) + (temData ? 0.3 : 0) + (temValor ? 0.3 : 0);
-  return score;
+  return (temTicker ? 0.4 : 0) + (temData ? 0.3 : 0) + (temValor ? 0.3 : 0);
 }

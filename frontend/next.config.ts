@@ -19,6 +19,12 @@ const nextConfig: NextConfig = {
       ...config.resolve.alias,
       canvas: false,
     };
+    // Permite que new URL('pdfjs-dist/build/pdf.worker.min.mjs', import.meta.url)
+    // emita o worker como asset no output (evita mismatch de protocolo).
+    config.module.rules.push({
+      test: /pdf\.worker(\.min)?\.mjs$/,
+      type: 'asset/resource',
+    });
     return config;
   },
 };
