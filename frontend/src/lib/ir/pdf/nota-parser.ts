@@ -68,9 +68,14 @@ async function extractLinesFromPDF(
   const { pdf } = await loadPDF(data, { password });
   const allLines: string[] = [];
 
+  console.log('[pdfjs] numPages:', pdf.numPages);
+
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const content = await page.getTextContent();
+    const textItems = content.items.filter((it) => 'str' in it) as Array<{ str: string }>;
+    const nonEmpty = textItems.filter((it) => it.str.trim());
+    console.log(`[pdfjs] page ${pageNum}: ${textItems.length} itens totais, ${nonEmpty.length} com texto. Primeiros:`, nonEmpty.slice(0, 5).map((i) => i.str));
 
     const lineMap = new Map<number, Array<{ x: number; str: string }>>();
 
