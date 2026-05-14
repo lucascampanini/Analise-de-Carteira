@@ -24,7 +24,7 @@ export function usePosicoesIR(uid: string | undefined, clienteId: string): UsePo
   const [error, setError]       = useState<string | null>(null);
 
   useEffect(() => {
-    if (!uid) { setLoading(false); return; }
+    if (!uid || !clienteId) { setLoading(false); return; }
 
     const unsub = onSnapshot(
       collection(db, IR_PATHS.posicaoIR(uid, clienteId)),
@@ -58,7 +58,7 @@ export function useResultadoMensal(
   const [error, setError]       = useState<string | null>(null);
 
   useEffect(() => {
-    if (!uid || !anoMes) { setLoading(false); return; }
+    if (!uid || !clienteId || !anoMes) { setLoading(false); return; }
 
     const unsub = onSnapshot(
       doc(db, IR_PATHS.apuracaoMensal(uid, clienteId), anoMes),
@@ -88,7 +88,7 @@ export function useApuracoes(uid: string | undefined, clienteId: string): UseApu
   const [error, setError]         = useState<string | null>(null);
 
   useEffect(() => {
-    if (!uid) { setLoading(false); return; }
+    if (!uid || !clienteId) { setLoading(false); return; }
 
     const unsub = onSnapshot(
       query(
@@ -128,7 +128,7 @@ export function useSaldoPrejuizo(uid: string | undefined, clienteId: string): Us
   const [loaded, setLoaded] = useState(0);
 
   useEffect(() => {
-    if (!uid) { setLoading(false); return; }
+    if (!uid || !clienteId) { setLoading(false); return; }
 
     const tipos: TipoPrejuizo[] = ['A_ST', 'A_DT', 'B_ST', 'B_DT'];
     const valores: Record<string, number> = { A_ST: 0, A_DT: 0, B_ST: 0, B_DT: 0 };
