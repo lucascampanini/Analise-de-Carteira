@@ -156,11 +156,13 @@ export function UploadNotasModal({ clienteId, open, onClose, onSaved }: Props) {
       }
     } catch (err: unknown) {
       if (mountedRef.current) {
+        const raw = err instanceof Error ? err.message : '';
+        const msg = raw.includes('internal') || raw.includes('NOT_FOUND') || raw.includes('unavailable')
+          ? 'Parser servidor indisponível. Ative as Firebase Functions (plano Blaze) ou use a versão digital da nota.'
+          : raw || 'Erro no parser servidor';
         setItems((prev) =>
           prev.map((i) =>
-            i.id === itemId
-              ? { ...i, status: 'error', error: err instanceof Error ? err.message : 'Erro no parser servidor' }
-              : i,
+            i.id === itemId ? { ...i, status: 'error', error: msg } : i,
           ),
         );
       }

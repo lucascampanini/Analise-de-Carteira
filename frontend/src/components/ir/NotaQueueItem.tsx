@@ -80,7 +80,7 @@ export function NotaQueueItem({
               Tentar novamente
             </button>
           )}
-          {qualidadeBaixa && (
+          {qualidadeBaixa && parsed?.qualidade !== 'IMAGEM' && (
             <button onClick={onServidorParser} className="text-[11px] text-blue-600 underline">
               Tentar com servidor
             </button>
@@ -95,6 +95,13 @@ export function NotaQueueItem({
           )}
         </div>
       </div>
+
+      {/* PDF digitalizado — explicação clara sem botão de servidor */}
+      {parsed?.qualidade === 'IMAGEM' && (
+        <p className="text-xs text-slate-500 mt-1">
+          PDF sem texto extraível (imagem digitalizada). Use a versão digital da nota baixada diretamente no portal XP.
+        </p>
+      )}
 
       {/* Mensagem de erro */}
       {error && (
