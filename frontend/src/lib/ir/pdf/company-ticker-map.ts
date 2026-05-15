@@ -251,6 +251,8 @@ const EMPRESA_BASE: Readonly<Record<string, string>> = {
   'VULCABRAS':        'VULC',
   'TRACK':            'TFCO',
   'TRACK FIELD':      'TFCO',
+  'CVC':              'CVCB',   // CVC Corp (turismo) → CVCB3
+  'CVC BRASIL':       'CVCB',
   'MOVIDA':           'MOVI',
   'LOCALIZA':         'RENT',
   'LOCALIZA HERTZ':   'RENT',
@@ -483,10 +485,11 @@ export function resolveTickerFromDescription(
   const desc = middle.replace(/@.*$/, '').toUpperCase();
 
   // Caso especial: "FII <abrev> ..." ou "ETF <abrev> ..." → tenta "<abrev>11"
+  // Testa tokens[1] e tokens[2] (alguns fundos têm prefixos como "BC", "VBI", etc.)
   if (token === 'FII' || token === 'ETF' || token === 'FIAGRO') {
     const tokens = desc.trim().split(/\s+/);
-    if (tokens.length >= 2) {
-      const candidate = tokens[1] + '11';
+    for (let i = 1; i < Math.min(tokens.length, 4); i++) {
+      const candidate = tokens[i] + '11';
       if (/^[A-Z]{2,6}11$/.test(candidate)) return candidate;
     }
     return null;
