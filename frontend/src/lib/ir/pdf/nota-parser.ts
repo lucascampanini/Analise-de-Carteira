@@ -76,11 +76,15 @@ async function extractLinesFromPDF(
     const textItems = content.items.filter((it) => 'str' in it) as Array<{ str: string }>;
     const nonEmpty = textItems.filter((it) => it.str.trim());
     console.log(`[pdfjs] page ${pageNum}: ${textItems.length} itens totais, ${nonEmpty.length} com texto. Primeiros:`, nonEmpty.slice(0, 5).map((i) => i.str));
+    // Estrutura real do 1º item para verificar se transform existe
+    if (content.items.length > 0) console.log('[pdfjs] primeiro item keys:', Object.keys(content.items[0] as object), 'isTextItem:', isTextItem(content.items[0]));
 
     const lineMap = new Map<number, Array<{ x: number; str: string }>>();
+    let processados = 0;
 
     for (const item of content.items) {
       if (!isTextItem(item) || !item.str.trim()) continue;
+      processados++;
       const x = item.transform[4];
       const rawY = item.transform[5];
 
@@ -105,6 +109,7 @@ async function extractLinesFromPDF(
       if (line) allLines.push(line);
     }
 
+    console.log(`[pdfjs] page ${pageNum}: processados=${processados}, allLines agora=${allLines.length}`);
     page.cleanup();
   }
 
@@ -354,6 +359,7 @@ export async function parseSinacorNota(
 ): Promise<ParsedNotaResult> {
   const lines = await extractLinesFromPDF(pdfData, opts.password);
   const fullText = lines.join('\n');
+  console.log('[pdfjs] parseSinacorNota: lines=', lines.length, 'fullText.length=', fullText.trim().length, 'primeiras linhas:', lines.slice(0, 3));
 
   if (fullText.trim().length < 100) {
     return makeEmptyResult('IMAGEM' as ExtractionQuality, ['PDF digitalizado — sem texto extraível']);
