@@ -21,6 +21,7 @@ import type {
   ResumoFinanceiroParsed,
 } from '../types/parsed-nota';
 import { PAT, CORRETORAS_NOME } from './sinacor-patterns';
+import { resolveTickerFromDescription } from './company-ticker-map';
 
 const PARSER_VERSAO = 'pdfjs-dist@5.7.284';
 
@@ -163,12 +164,22 @@ function parseOperationLine(line: string): OperacaoParsed | null {
   const [, cv, tipoMercadoRaw, middle, qtyStr, precoStr, valorStr] = m;
   const tipoMercado = tipoMercadoRaw.trim();
 
-  // Primeiro token do middle é sempre o ticker (descritores como "PN", "N1" vêm depois)
+  // Primeiro token do middle é o ticker (ou abreviação da empresa nas notas XP 2025+)
   const firstToken = middle.trim().split(/\s+/)[0].toUpperCase();
   if (!PAT.tickerB3.test(firstToken)) return null;
 
-  const ticker = firstToken;
-  const classeAtivo = classifyAsset(ticker, tipoMercado);
+  let ticker = firstToken;
+  let classeAtivo = classifyAsset(ticker, tipoMercado);
+
+  // Notas XP 2025+ omitem o código B3 e mostram o nome da empresa (ex: "MINERVA ON NM").
+  // Tenta resolver pelo dicionário nome → ticker quando a classe ficou desconhecida.
+  if (classeAtivo === AssetClass.DESCONHECIDO) {
+    const resolved = resolveTickerFromDescription(firstToken, middle);
+    if (resolved) {
+      ticker = resolved;
+      classeAtivo = classifyAsset(ticker, tipoMercado);
+    }
+  }
   const quantidade = parseInt(qtyStr, 10);
   const precoUnitario = parseBRL(precoStr);
   const valorBruto = parseBRL(valorStr);
