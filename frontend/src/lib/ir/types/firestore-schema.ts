@@ -165,6 +165,9 @@ export interface ApuracaoMensalDoc {
   darfTotalEmCentavos: number;         // soma dos 4 DARFs (mesmo código 6015)
   vencimentoDarf?: string;             // "YYYY-MM-DD" — último dia útil do mês seguinte
 
+  // Pagamento do DARF
+  dataPagamentoDarf?: string;          // "YYYY-MM-DD" preenchido ao marcar como pago
+
   // Rastreabilidade
   notasProcessadas: string[];          // IDs das notas incluídas
   dirty: boolean;                      // true = precisa recalcular (nota retroativa importada)

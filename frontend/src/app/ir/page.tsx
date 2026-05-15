@@ -3,7 +3,11 @@ import { Suspense, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
-import { Upload, AlertTriangle, TrendingDown, BarChart2, Calendar, FileDown, Receipt, ChevronRight } from 'lucide-react';
+import {
+  Upload, AlertTriangle, TrendingDown, BarChart2,
+  Calendar, ChevronRight, Receipt,
+  LayoutGrid, FileText, PieChart, CalendarDays,
+} from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { getClientes } from '@/lib/firestore';
@@ -12,6 +16,9 @@ import { usePosicoesIR, useResultadoMensal, useSaldoPrejuizo, useApuracoes } fro
 import { LIMITE_ISENCAO_ACOES_CENTAVOS, DARF_MINIMO_CENTAVOS } from '@/lib/ir/types/asset-types';
 import { UploadNotasModal } from '@/components/ir/UploadNotasModal';
 import { EventosCorporativosPanel } from '@/components/ir/EventosCorporativosPanel';
+import { PosicoesTable } from '@/components/ir/PosicoesTable';
+import { ApuracoesMensais } from '@/components/ir/ApuracoesMensais';
+import { ResumoAnual } from '@/components/ir/ResumoAnual';
 import type { NotaCorretagemDoc } from '@/lib/ir/types/firestore-schema';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -42,7 +49,19 @@ function anoMesAtual(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// ─── Seletor de cliente (exibido quando /ir é acessado sem clienteId) ────────
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+
+type TabId = 'carteira' | 'apuracoes' | 'anual' | 'notas' | 'eventos';
+
+const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
+  { id: 'carteira',   label: 'Carteira',      icon: LayoutGrid   },
+  { id: 'apuracoes',  label: 'Apurações',     icon: CalendarDays },
+  { id: 'anual',      label: 'Resumo anual',  icon: PieChart     },
+  { id: 'notas',      label: 'Notas',         icon: FileText     },
+  { id: 'eventos',    label: 'Eventos corp.', icon: Receipt      },
+];
+
+// ─── Seletor de cliente ───────────────────────────────────────────────────────
 
 function IRClientePicker() {
   const { user } = useAuth();
@@ -74,7 +93,7 @@ function IRClientePicker() {
         <Receipt size={22} className="text-svn-ruby shrink-0" />
         <h1 className="text-2xl font-bold text-slate-800">Apuração de IR</h1>
       </div>
-      <p className="text-sm text-slate-500">Selecione um cliente para acessar o módulo de IR sobre notas de corretagem.</p>
+      <p className="text-sm text-slate-500">Selecione um cliente para acessar o módulo de IR.</p>
 
       <input
         type="text"
@@ -109,7 +128,7 @@ function IRClientePicker() {
   );
 }
 
-// ─── Sub-componente: cards de resumo IR ──────────────────────────────────────
+// ─── Cards de resumo IR ───────────────────────────────────────────────────────
 
 function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
   const anoMes = anoMesAtual();
@@ -117,8 +136,9 @@ function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
   const { apuracao, loading: aLoading } = useResultadoMensal(uid, clienteId, anoMes);
   const { saldos, loading: sLoading }   = useSaldoPrejuizo(uid, clienteId);
 
-  const loading = pLoading || aLoading || sLoading;
-  if (loading) return <div className="text-xs text-slate-400 py-2">Calculando…</div>;
+  if (pLoading || aLoading || sLoading) {
+    return <div className="text-xs text-slate-400 py-2">Calculando…</div>;
+  }
 
   const darfTotal = apuracao
     ? apuracao.cestaA_ST.darfTotalEmCentavos + apuracao.cestaA_DT.darfTotalEmCentavos
@@ -126,8 +146,8 @@ function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
     : 0;
   const darfDevido = darfTotal >= DARF_MINIMO_CENTAVOS;
 
-  const vendasAcoes = apuracao?.cestaA_ST.vendasAcoesSTemCentavos ?? 0;
-  const pctIsencao  = Math.min(100, Math.round((vendasAcoes / LIMITE_ISENCAO_ACOES_CENTAVOS) * 100));
+  const vendasAcoes  = apuracao?.cestaA_ST.vendasAcoesSTemCentavos ?? 0;
+  const pctIsencao   = Math.min(100, Math.round((vendasAcoes / LIMITE_ISENCAO_ACOES_CENTAVOS) * 100));
   const proximoLimite = pctIsencao >= 70 && pctIsencao < 100;
   const atingiuLimite = vendasAcoes > LIMITE_ISENCAO_ACOES_CENTAVOS;
 
@@ -136,7 +156,6 @@ function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {/* DARF do mês */}
       <div className={`rounded-xl border p-4 ${darfDevido ? 'border-svn-ruby bg-red-50' : 'border-slate-200 bg-white'}`}>
         <div className="flex items-center gap-2 mb-1">
           <Calendar size={14} className={darfDevido ? 'text-svn-ruby' : 'text-slate-400'} />
@@ -152,7 +171,6 @@ function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
         </p>
       </div>
 
-      {/* Saldo de prejuízo */}
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-center gap-2 mb-1">
           <TrendingDown size={14} className="text-slate-400" />
@@ -166,7 +184,6 @@ function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
         </p>
       </div>
 
-      {/* Posições abertas */}
       <div className="rounded-xl border border-slate-200 bg-white p-4">
         <div className="flex items-center gap-2 mb-1">
           <BarChart2 size={14} className="text-slate-400" />
@@ -178,7 +195,6 @@ function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
         </p>
       </div>
 
-      {/* Alerta isenção R$20k */}
       <div className={`rounded-xl border p-4 ${atingiuLimite ? 'border-svn-ruby bg-red-50' : proximoLimite ? 'border-amber-300 bg-amber-50' : 'border-slate-200 bg-white'}`}>
         <div className="flex items-center gap-2 mb-1">
           <AlertTriangle size={14} className={atingiuLimite ? 'text-svn-ruby' : proximoLimite ? 'text-amber-500' : 'text-slate-400'} />
@@ -199,7 +215,72 @@ function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
   );
 }
 
-// ─── Conteúdo da página (usa useSearchParams — requer Suspense no export) ────
+// ─── Tabela de notas ──────────────────────────────────────────────────────────
+
+function NotasTab({
+  notas, loading, onImportar,
+}: { notas: NotaCorretagemDoc[]; loading: boolean; onImportar: () => void }) {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
+        <h2 className="font-semibold text-slate-700 text-sm">Notas de Corretagem</h2>
+        <span className="text-xs text-slate-400">{notas.length} importada{notas.length !== 1 ? 's' : ''}</span>
+      </div>
+
+      {loading ? (
+        <div className="p-8 text-center text-slate-400 text-sm">Carregando…</div>
+      ) : notas.length === 0 ? (
+        <div className="p-8 text-center text-slate-400 text-sm">
+          Nenhuma nota importada ainda.
+          <br />
+          <button onClick={onImportar} className="mt-2 text-svn-ruby underline text-xs">
+            Importar primeira nota
+          </button>
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-xs text-slate-500 text-left">
+                <th className="px-4 py-2 font-medium">Pregão</th>
+                <th className="px-4 py-2 font-medium">Nº Nota</th>
+                <th className="px-4 py-2 font-medium">Corretora</th>
+                <th className="px-4 py-2 font-medium text-right">Operações</th>
+                <th className="px-4 py-2 font-medium text-right">Líquido</th>
+                <th className="px-4 py-2 font-medium">Status</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {notas.map((n) => {
+                const liquido = n.resumoFinanceiro.liquidoParaClienteEmCentavos / 100;
+                return (
+                  <tr key={n.id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{formatData(n.dataPregao)}</td>
+                    <td className="px-4 py-2.5 font-mono text-slate-600">{n.nrNota}</td>
+                    <td className="px-4 py-2.5 text-slate-600 max-w-[180px] truncate" title={n.corretora}>
+                      {n.corretora}
+                    </td>
+                    <td className="px-4 py-2.5 text-right text-slate-700">{n.operacoes.length}</td>
+                    <td className={`px-4 py-2.5 text-right font-medium ${liquido >= 0 ? 'text-emerald-700' : 'text-svn-ruby'}`}>
+                      {liquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[n.status] ?? 'bg-slate-100 text-slate-500'}`}>
+                        {STATUS_LABEL[n.status] ?? n.status}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Conteúdo principal da página ────────────────────────────────────────────
 
 function IRPageInner() {
   const searchParams = useSearchParams();
@@ -210,22 +291,10 @@ function IRPageInner() {
   const [notas, setNotas] = useState<NotaCorretagemDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
-  const [gerandoPDF, setGerandoPDF] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>('carteira');
 
+  const { posicoes } = usePosicoesIR(user?.uid, clienteId);
   const { apuracoes } = useApuracoes(user?.uid, clienteId);
-  const { posicoes }  = usePosicoesIR(user?.uid, clienteId);
-
-  const baixarPDF = async (anoMes: string) => {
-    setGerandoPDF(anoMes);
-    try {
-      const apuracao = apuracoes.find((a) => a.anoMes === anoMes);
-      if (!apuracao) return;
-      const { baixarRelatorioIR } = await import('@/components/ir/RelatorioIRPDF');
-      await baixarRelatorioIR(apuracao, nomeCliente || clienteId);
-    } finally {
-      setGerandoPDF(null);
-    }
-  };
 
   const carregarDados = async () => {
     if (!user || !clienteId) return;
@@ -249,12 +318,17 @@ function IRPageInner() {
 
   const nomeCliente = cliente?.nome || clienteId;
 
-  if (!clienteId) {
-    return <IRClientePicker />;
-  }
+  if (!clienteId) return <IRClientePicker />;
+
+  // Badge de alerta por tab
+  const badgeApuracoes = apuracoes.filter(
+    (a) => a.darfTotalEmCentavos >= DARF_MINIMO_CENTAVOS && a.statusDarf !== 'pago'
+  ).length;
+
+  const badgeNotas = notas.filter((n) => n.status === 'revisao_pendente').length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Cabeçalho */}
       <div className="flex items-center gap-3 flex-wrap">
         <Link href="/clientes" className="text-svn-ruby text-sm">← Clientes</Link>
@@ -269,136 +343,64 @@ function IRPageInner() {
         </button>
       </div>
 
-      {/* Cards de resumo IR */}
+      {/* Cards de resumo */}
       {user && <IRResumoCards uid={user.uid} clienteId={clienteId} />}
 
-      {/* Eventos corporativos */}
-      {user && (
-        <EventosCorporativosPanel
-          uid={user.uid}
-          clienteId={clienteId}
-          tickers={posicoes.map((p) => p.ticker)}
-        />
-      )}
-
-      {/* Tabela de notas */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-700 text-sm">Notas de Corretagem</h2>
-          <span className="text-xs text-slate-400">{notas.length} importada{notas.length !== 1 ? 's' : ''}</span>
+      {/* Tabs */}
+      <div className="border-b border-slate-200">
+        <div className="flex gap-1 overflow-x-auto">
+          {TABS.map((tab) => {
+            const Icon = tab.icon;
+            const badge = tab.id === 'apuracoes' ? badgeApuracoes : tab.id === 'notas' ? badgeNotas : 0;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors whitespace-nowrap ${
+                  activeTab === tab.id
+                    ? 'border-svn-ruby text-svn-ruby'
+                    : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+                }`}
+              >
+                <Icon size={14} />
+                {tab.label}
+                {badge > 0 && (
+                  <span className="ml-1 bg-svn-ruby text-white text-[10px] rounded-full px-1.5 py-0.5 font-bold leading-none">
+                    {badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
-
-        {loading ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Carregando…</div>
-        ) : notas.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm">
-            Nenhuma nota importada ainda.
-            <br />
-            <button
-              onClick={() => setModalOpen(true)}
-              className="mt-2 text-svn-ruby underline text-xs"
-            >
-              Importar primeira nota
-            </button>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-xs text-slate-500 text-left">
-                  <th className="px-4 py-2 font-medium">Pregão</th>
-                  <th className="px-4 py-2 font-medium">Nº Nota</th>
-                  <th className="px-4 py-2 font-medium">Corretora</th>
-                  <th className="px-4 py-2 font-medium text-right">Operações</th>
-                  <th className="px-4 py-2 font-medium text-right">Líquido</th>
-                  <th className="px-4 py-2 font-medium">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {notas.map((n) => {
-                  const liquido = n.resumoFinanceiro.liquidoParaClienteEmCentavos / 100;
-                  return (
-                    <tr key={n.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">
-                        {formatData(n.dataPregao)}
-                      </td>
-                      <td className="px-4 py-2.5 font-mono text-slate-600">{n.nrNota}</td>
-                      <td className="px-4 py-2.5 text-slate-600 max-w-[180px] truncate" title={n.corretora}>
-                        {n.corretora}
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-slate-700">{n.operacoes.length}</td>
-                      <td className={`px-4 py-2.5 text-right font-medium ${liquido >= 0 ? 'text-emerald-700' : 'text-svn-ruby'}`}>
-                        {liquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[n.status] ?? 'bg-slate-100 text-slate-500'}`}>
-                          {STATUS_LABEL[n.status] ?? n.status}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
       </div>
 
-      {/* Histórico de apurações */}
-      {apuracoes.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="px-5 py-3 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-700 text-sm">Apurações mensais</h2>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-slate-100 text-xs text-slate-500 text-left">
-                  <th className="px-4 py-2 font-medium">Mês</th>
-                  <th className="px-4 py-2 font-medium text-right">DARF total</th>
-                  <th className="px-4 py-2 font-medium text-right">Prejuízo A_ST</th>
-                  <th className="px-4 py-2 font-medium text-right">Prejuízo B_ST</th>
-                  <th className="px-4 py-2 font-medium">Vencimento</th>
-                  <th className="px-4 py-2 font-medium"></th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-50">
-                {apuracoes.map((a) => {
-                  const darf = a.darfTotalEmCentavos;
-                  const darfDevido = darf >= DARF_MINIMO_CENTAVOS;
-                  return (
-                    <tr key={a.anoMes} className="hover:bg-slate-50">
-                      <td className="px-4 py-2.5 font-mono text-slate-700">{a.anoMes}</td>
-                      <td className={`px-4 py-2.5 text-right font-medium ${darfDevido ? 'text-svn-ruby' : 'text-slate-400'}`}>
-                        {darfDevido ? brl(darf) : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-slate-600">
-                        {a.cestaA_ST.novoSaldoPrejuizoEmCentavos > 0 ? brl(a.cestaA_ST.novoSaldoPrejuizoEmCentavos) : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-right text-slate-600">
-                        {a.cestaB_ST.novoSaldoPrejuizoEmCentavos > 0 ? brl(a.cestaB_ST.novoSaldoPrejuizoEmCentavos) : '—'}
-                      </td>
-                      <td className="px-4 py-2.5 text-slate-500 text-xs">
-                        {a.vencimentoDarf ? formatData(a.vencimentoDarf) : '—'}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <button
-                          onClick={() => baixarPDF(a.anoMes)}
-                          disabled={gerandoPDF === a.anoMes}
-                          className="flex items-center gap-1 text-[11px] text-slate-500 hover:text-svn-ruby transition-colors disabled:opacity-40"
-                        >
-                          <FileDown size={13} />
-                          {gerandoPDF === a.anoMes ? 'Gerando…' : 'PDF'}
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      {/* Conteúdo da tab ativa */}
+      <div>
+        {activeTab === 'carteira' && (
+          <PosicoesTable posicoes={posicoes} />
+        )}
+
+        {activeTab === 'apuracoes' && user && (
+          <ApuracoesMensais uid={user.uid} clienteId={clienteId} nomeCliente={nomeCliente} />
+        )}
+
+        {activeTab === 'anual' && user && (
+          <ResumoAnual uid={user.uid} clienteId={clienteId} />
+        )}
+
+        {activeTab === 'notas' && (
+          <NotasTab notas={notas} loading={loading} onImportar={() => setModalOpen(true)} />
+        )}
+
+        {activeTab === 'eventos' && user && (
+          <EventosCorporativosPanel
+            uid={user.uid}
+            clienteId={clienteId}
+            tickers={posicoes.map((p) => p.ticker)}
+          />
+        )}
+      </div>
 
       <UploadNotasModal
         clienteId={clienteId}
@@ -410,7 +412,7 @@ function IRPageInner() {
   );
 }
 
-// ─── Export default com Suspense (obrigatório para useSearchParams em static export) ──
+// ─── Export default ───────────────────────────────────────────────────────────
 
 export default function IRPage() {
   return (

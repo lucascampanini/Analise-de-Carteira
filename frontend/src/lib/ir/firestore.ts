@@ -3,7 +3,7 @@
 // Converte ParsedNotaResult (reais) → NotaCorretagemDoc (centavos) ao salvar.
 
 import {
-  collection, doc, getDoc, getDocs, setDoc,
+  collection, doc, getDoc, getDocs, setDoc, updateDoc, where,
   query, orderBy, serverTimestamp, type FieldValue,
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -127,4 +127,33 @@ export async function notaJaExiste(
     doc(db, 'users', uid, 'clientes', clienteId, 'notas_corretagem', nrNota),
   );
   return snap.exists();
+}
+
+/** Retorna todas as notas de um mês específico ("YYYY-MM") em ordem de pregão. */
+export async function getNotasMes(
+  uid: string,
+  clienteId: string,
+  anoMes: string,
+): Promise<NotaCorretagemDoc[]> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'users', uid, 'clientes', clienteId, 'notas_corretagem'),
+      where('anoMes', '==', anoMes),
+      orderBy('dataPregao', 'asc'),
+    ),
+  );
+  return snap.docs.map((d) => ({ id: d.id, ...d.data() } as NotaCorretagemDoc));
+}
+
+/** Marca o DARF de um mês como pago e registra a data de pagamento. */
+export async function marcarDarfPago(
+  uid: string,
+  clienteId: string,
+  anoMes: string,
+  dataPagamento: string, // "YYYY-MM-DD"
+): Promise<void> {
+  await updateDoc(
+    doc(db, 'users', uid, 'clientes', clienteId, 'apuracoes_ir', anoMes),
+    { statusDarf: 'pago', dataPagamentoDarf: dataPagamento },
+  );
 }
