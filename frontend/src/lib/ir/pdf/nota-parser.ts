@@ -359,7 +359,8 @@ export async function parseSinacorNota(
 ): Promise<ParsedNotaResult> {
   const lines = await extractLinesFromPDF(pdfData, opts.password);
   const fullText = lines.join('\n');
-  console.log('[pdfjs] parseSinacorNota: lines=', lines.length, 'fullText.length=', fullText.trim().length, 'primeiras linhas:', lines.slice(0, 3));
+  console.log('[pdfjs] lines=' + lines.length + ' fullText=' + fullText.trim().length);
+  console.log('[pdfjs] lines 0-19:\n' + lines.slice(0, 20).map((l, i) => i + ': ' + l).join('\n'));
 
   if (fullText.trim().length < 100) {
     return makeEmptyResult('IMAGEM' as ExtractionQuality, ['PDF digitalizado — sem texto extraível']);
