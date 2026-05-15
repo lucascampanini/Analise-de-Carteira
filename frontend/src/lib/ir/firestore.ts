@@ -3,7 +3,7 @@
 // Converte ParsedNotaResult (reais) → NotaCorretagemDoc (centavos) ao salvar.
 
 import {
-  collection, doc, getDoc, getDocs, setDoc, updateDoc, where,
+  collection, doc, deleteDoc, getDoc, getDocs, setDoc, updateDoc, where,
   query, orderBy, serverTimestamp, type FieldValue,
 } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -143,6 +143,17 @@ export async function getNotasMes(
     ),
   );
   return snap.docs.map((d) => ({ id: d.id, ...d.data() } as NotaCorretagemDoc));
+}
+
+/** Remove uma nota e recalcula PM + apurações. */
+export async function excluirNota(
+  uid: string,
+  clienteId: string,
+  nrNota: string,
+): Promise<void> {
+  await deleteDoc(
+    doc(db, 'users', uid, 'clientes', clienteId, 'notas_corretagem', nrNota),
+  );
 }
 
 /** Marca o DARF de um mês como pago e registra a data de pagamento. */

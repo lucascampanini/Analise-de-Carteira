@@ -5,13 +5,15 @@ import { doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import {
   Upload, AlertTriangle, TrendingDown, BarChart2,
-  Calendar, ChevronRight, Receipt,
+  Calendar, ChevronRight, Receipt, Trash2,
   LayoutGrid, FileText, PieChart, CalendarDays,
 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
 import { getClientes } from '@/lib/firestore';
-import { getNotasCorretagem } from '@/lib/ir/firestore';
+import { getNotasCorretagem, excluirNota } from '@/lib/ir/firestore';
+import { recalcularPMCompleto } from '@/lib/ir/pm-calculator';
+import { recalcularApuracoesCompleto } from '@/lib/ir/apuracao-mensal';
 import { usePosicoesIR, useResultadoMensal, useSaldoPrejuizo, useApuracoes } from '@/lib/ir/hooks';
 import { LIMITE_ISENCAO_ACOES_CENTAVOS, DARF_MINIMO_CENTAVOS } from '@/lib/ir/types/asset-types';
 import { UploadNotasModal } from '@/components/ir/UploadNotasModal';
@@ -218,8 +220,26 @@ function IRResumoCards({ uid, clienteId }: { uid: string; clienteId: string }) {
 // ─── Tabela de notas ──────────────────────────────────────────────────────────
 
 function NotasTab({
-  notas, loading, onImportar,
-}: { notas: NotaCorretagemDoc[]; loading: boolean; onImportar: () => void }) {
+  notas, loading, onImportar, onExcluir,
+}: {
+  notas: NotaCorretagemDoc[];
+  loading: boolean;
+  onImportar: () => void;
+  onExcluir: (nrNota: string) => Promise<void>;
+}) {
+  const [confirmando, setConfirmando] = useState<string | null>(null);
+  const [excluindo, setExcluindo] = useState<string | null>(null);
+
+  const handleExcluir = async (nrNota: string) => {
+    setExcluindo(nrNota);
+    try {
+      await onExcluir(nrNota);
+    } finally {
+      setExcluindo(null);
+      setConfirmando(null);
+    }
+  };
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
       <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
@@ -248,11 +268,14 @@ function NotasTab({
                 <th className="px-4 py-2 font-medium text-right">Operações</th>
                 <th className="px-4 py-2 font-medium text-right">Líquido</th>
                 <th className="px-4 py-2 font-medium">Status</th>
+                <th className="px-4 py-2 font-medium"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
               {notas.map((n) => {
                 const liquido = n.resumoFinanceiro.liquidoParaClienteEmCentavos / 100;
+                const isConfirmando = confirmando === n.nrNota;
+                const isExcluindo  = excluindo  === n.nrNota;
                 return (
                   <tr key={n.id} className="hover:bg-slate-50 transition-colors">
                     <td className="px-4 py-2.5 text-slate-700 whitespace-nowrap">{formatData(n.dataPregao)}</td>
@@ -268,6 +291,34 @@ function NotasTab({
                       <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${STATUS_CLS[n.status] ?? 'bg-slate-100 text-slate-500'}`}>
                         {STATUS_LABEL[n.status] ?? n.status}
                       </span>
+                    </td>
+                    <td className="px-4 py-2.5 text-right">
+                      {isConfirmando ? (
+                        <div className="flex items-center gap-2 justify-end">
+                          <span className="text-[11px] text-slate-500">Excluir nota {n.nrNota}?</span>
+                          <button
+                            onClick={() => handleExcluir(n.nrNota)}
+                            disabled={isExcluindo}
+                            className="text-[11px] px-2 py-0.5 bg-svn-ruby text-white rounded hover:bg-red-700 disabled:opacity-40 transition-colors"
+                          >
+                            {isExcluindo ? '…' : 'Confirmar'}
+                          </button>
+                          <button
+                            onClick={() => setConfirmando(null)}
+                            className="text-[11px] text-slate-400 hover:text-slate-600"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setConfirmando(n.nrNota)}
+                          className="text-slate-300 hover:text-svn-ruby transition-colors p-1"
+                          title="Excluir nota"
+                        >
+                          <Trash2 size={13} />
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -315,6 +366,15 @@ function IRPageInner() {
     carregarDados();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, clienteId]);
+
+  const handleExcluirNota = async (nrNota: string) => {
+    if (!user) return;
+    await excluirNota(user.uid, clienteId, nrNota);
+    // Recalcula PM e apurações para refletir a remoção
+    try { await recalcularPMCompleto(user.uid, clienteId); } catch { /* ignora */ }
+    try { await recalcularApuracoesCompleto(user.uid, clienteId); } catch { /* ignora */ }
+    await carregarDados();
+  };
 
   const nomeCliente = cliente?.nome || clienteId;
 
@@ -390,7 +450,12 @@ function IRPageInner() {
         )}
 
         {activeTab === 'notas' && (
-          <NotasTab notas={notas} loading={loading} onImportar={() => setModalOpen(true)} />
+          <NotasTab
+            notas={notas}
+            loading={loading}
+            onImportar={() => setModalOpen(true)}
+            onExcluir={handleExcluirNota}
+          />
         )}
 
         {activeTab === 'eventos' && user && (
