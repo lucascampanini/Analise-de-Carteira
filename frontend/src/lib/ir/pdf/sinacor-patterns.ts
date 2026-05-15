@@ -24,12 +24,12 @@ export const PAT = {
   // Quick check antes do parse completo (evita regex pesada em linhas erradas)
   operacaoInicio: /^(C|V)\s+(VISTA|FRACIONARIO|OPCAO(?:\s+DE\s+(?:COMPRA|VENDA))?|FUTURO|TERMO)\s+/i,
 
-  // Parse completo:  C/V  TipoMercado  [middle]  qty  preco  D/C  valor
+  // Parse completo:  C/V  TipoMercado  [middle]  qty  preco  valor  D/C
   // - middle (não-ganancioso) absorve ticker + descritores + obs
   // - qty = inteiro sem ponto/vírgula
   // - preco e valor = formato BRL  ([\d.]+,\d{2})
-  // Âncora $ garante que D/C e valor são sempre os últimos tokens da linha
-  operacao: /^(C|V)\s+(VISTA|FRACIONARIO|OPCAO(?:\s+DE\s+(?:COMPRA|VENDA))?|FUTURO|TERMO)\s+(.+?)\s+(\d{1,10})\s+([\d.]+,\d{2})\s+(C|D)\s+([\d.]+,\d{2})\s*$/i,
+  // Âncora $ garante que D/C é sempre o último token da linha (formato Sinacor XP/Clear)
+  operacao: /^(C|V)\s+(VISTA|FRACIONARIO|OPCAO(?:\s+DE\s+(?:COMPRA|VENDA))?|FUTURO|TERMO)\s+(.+?)\s+(\d{1,10})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+(C|D)\s*$/i,
 
   // Ticker B3 válido: 3-6 letras + dígitos + letra opcional + dígitos
   // Permissivo — classificação final é feita pelo classifyAsset()

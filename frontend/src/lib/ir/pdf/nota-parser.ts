@@ -68,23 +68,14 @@ async function extractLinesFromPDF(
   const { pdf } = await loadPDF(data, { password });
   const allLines: string[] = [];
 
-  console.log('[pdfjs] numPages:', pdf.numPages);
-
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
     const content = await page.getTextContent();
-    const textItems = content.items.filter((it) => 'str' in it) as Array<{ str: string }>;
-    const nonEmpty = textItems.filter((it) => it.str.trim());
-    console.log(`[pdfjs] page ${pageNum}: ${textItems.length} itens totais, ${nonEmpty.length} com texto. Primeiros:`, nonEmpty.slice(0, 5).map((i) => i.str));
-    // Estrutura real do 1º item para verificar se transform existe
-    if (content.items.length > 0) console.log('[pdfjs] primeiro item keys:', Object.keys(content.items[0] as object), 'isTextItem:', isTextItem(content.items[0]));
 
     const lineMap = new Map<number, Array<{ x: number; str: string }>>();
-    let processados = 0;
 
     for (const item of content.items) {
       if (!isTextItem(item) || !item.str.trim()) continue;
-      processados++;
       const x = item.transform[4];
       const rawY = item.transform[5];
 
@@ -109,7 +100,6 @@ async function extractLinesFromPDF(
       if (line) allLines.push(line);
     }
 
-    console.log(`[pdfjs] page ${pageNum}: processados=${processados}, allLines agora=${allLines.length}`);
     page.cleanup();
   }
 
@@ -126,11 +116,31 @@ function parseHeader(lines: string[]): {
   cnpjCorretora: string;
   cpfCliente: string | undefined;
 } {
-  // Busca nos primeiros 30 itens — cabeçalho sempre no início
+  // Busca nos primeiros 30 linhas — cabeçalho sempre no início
   const headerText = lines.slice(0, 30).join(' ');
 
-  const dataBR = headerText.match(PAT.dataPregao)?.[1] ?? '';
-  const nrNota = headerText.match(PAT.nrNota)?.[1] ?? '';
+  let dataBR = headerText.match(PAT.dataPregao)?.[1] ?? '';
+  let nrNota = headerText.match(PAT.nrNota)?.[1] ?? '';
+
+  // Fallback para formato XP 2025+: rótulos e valores em linhas consecutivas.
+  // Linha de rótulos: "Nr. nota  Folha  Data pregão"
+  // Linha de valores: "131542581  1  05/03/2026"
+  if (!dataBR || !nrNota) {
+    for (let i = 0; i < Math.min(lines.length - 1, 25); i++) {
+      const label = lines[i];
+      const value = lines[i + 1];
+      if (/nr\.?\s*nota/i.test(label) && /data\s+preg[aã]o/i.test(label)) {
+        const tokens = value.trim().split(/\s+/);
+        if (!nrNota && /^\d+$/.test(tokens[0])) nrNota = tokens[0];
+        if (!dataBR) {
+          const m = value.match(/(\d{2}\/\d{2}\/\d{4})/);
+          if (m) dataBR = m[1];
+        }
+        break;
+      }
+    }
+  }
+
   const cnpj = headerText.match(PAT.cnpj)?.[1] ?? '';
   const cpf = headerText.match(PAT.cpf)?.[1];
   const corretora = cnpj
@@ -141,12 +151,16 @@ function parseHeader(lines: string[]): {
 }
 
 function parseOperationLine(line: string): OperacaoParsed | null {
-  if (!PAT.operacaoInicio.test(line)) return null;
+  // Remove prefixo "1-BOVESPA " ou "1-BMF " presente no formato XP 2025+
+  const stripped = line.replace(/^\d+-(?:BMF)?BOVESPA\s+/i, '');
 
-  const m = line.match(PAT.operacao);
+  if (!PAT.operacaoInicio.test(stripped)) return null;
+
+  const m = stripped.match(PAT.operacao);
   if (!m) return null;
 
-  const [, cv, tipoMercadoRaw, middle, qtyStr, precoStr, , valorStr] = m;
+  // Grupos: 1=cv, 2=tipoMercado, 3=middle, 4=qty, 5=preco, 6=valor, 7=D/C
+  const [, cv, tipoMercadoRaw, middle, qtyStr, precoStr, valorStr] = m;
   const tipoMercado = tipoMercadoRaw.trim();
 
   // Primeiro token do middle é sempre o ticker (descritores como "PN", "N1" vêm depois)
@@ -359,8 +373,6 @@ export async function parseSinacorNota(
 ): Promise<ParsedNotaResult> {
   const lines = await extractLinesFromPDF(pdfData, opts.password);
   const fullText = lines.join('\n');
-  console.log('[pdfjs] lines=' + lines.length + ' fullText=' + fullText.trim().length);
-  console.log('[pdfjs] lines 0-19:\n' + lines.slice(0, 20).map((l, i) => i + ': ' + l).join('\n'));
 
   if (fullText.trim().length < 100) {
     return makeEmptyResult('IMAGEM' as ExtractionQuality, ['PDF digitalizado — sem texto extraível']);
