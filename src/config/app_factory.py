@@ -14,7 +14,7 @@ from src.adapters.inbound.rest.analysis_controller import router as analysis_rou
 from src.adapters.inbound.rest.carteira_controller import router as carteira_router
 from src.adapters.inbound.rest.consolidacao_controller import router as consolidacao_router
 from src.adapters.outbound.persistence.sqlalchemy.models.orm_models import Base
-from src.config.container import Container
+from src.config.container import Container, SharedServices
 from src.config.settings import Settings
 
 # === ASSISTENTE MODULE — remover estas 2 linhas para desativar o módulo ===
@@ -41,6 +41,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
+
+        # Serviços stateless criados UMA VEZ — compartilhados entre todas as requests
+        app.state.shared_services = SharedServices(settings)
+        logger.info("shared_services_iniciados")
 
         # Iniciar bot Telegram se o token estiver configurado
         if settings.telegram_bot_token:
@@ -115,12 +119,15 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_factory = session_factory
     app.state.settings = settings
 
-    # Middleware: cria Container com session por request
+    # Middleware: cria Container por request (apenas repositórios + handlers)
     @app.middleware("http")
     async def inject_container(request: Request, call_next):
         async with session_factory() as session:
             async with session.begin():
-                request.state.container = Container(settings=settings, session=session)
+                request.state.container = Container(
+                    shared=app.state.shared_services,
+                    session=session,
+                )
                 response = await call_next(request)
         return response
 

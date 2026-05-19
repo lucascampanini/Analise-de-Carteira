@@ -138,7 +138,9 @@ class PdfPlumberClaudeParser:
             )
 
         pages_text: list[str] = []
+        n_paginas = 0
         with pdfplumber.open(io.BytesIO(pdf_bytes)) as pdf:
+            n_paginas = len(pdf.pages)
             for page_num, page in enumerate(pdf.pages, 1):
                 page_text = page.extract_text() or ""
 
@@ -157,9 +159,19 @@ class PdfPlumberClaudeParser:
                 )
 
         full_text = "\n\n".join(pages_text)
-        # Truncar se muito longo
         if len(full_text) > self.MAX_TEXT_CHARS:
-            full_text = full_text[: self.MAX_TEXT_CHARS] + "\n[... texto truncado ...]"
+            logger.warning(
+                "pdf_texto_truncado",
+                extra={
+                    "chars_total": len(full_text),
+                    "limite": self.MAX_TEXT_CHARS,
+                    "paginas": n_paginas,
+                },
+            )
+            full_text = (
+                full_text[: self.MAX_TEXT_CHARS]
+                + "\n[... texto truncado — verifique posições nas últimas páginas ...]"
+            )
 
         return full_text
 
@@ -199,9 +211,10 @@ class PdfPlumberClaudeParser:
             content = "\n".join(lines[1:-1]) if len(lines) > 2 else content
 
         raw_list = json.loads(content)
-        return [self._parse_raw_posicao(item) for item in raw_list if item]
+        posicoes = [self._parse_raw_posicao(item) for item in raw_list if item]
+        return [p for p in posicoes if p is not None]
 
-    def _parse_raw_posicao(self, raw: dict) -> PosicaoParsedDTO:
+    def _parse_raw_posicao(self, raw: dict) -> PosicaoParsedDTO | None:
         """Converte dict bruto do Claude para PosicaoParsedDTO."""
         def to_decimal(value: str | float | int) -> Decimal:
             try:
@@ -214,9 +227,17 @@ class PdfPlumberClaudeParser:
         preco_medio = float(to_decimal(raw.get("preco_medio", "0")))
         valor_atual = float(to_decimal(raw.get("valor_atual", "0")))
 
-        # Calcular valor_atual a partir de quantidade * preco_medio se ausente
+        # Derivar valor_atual a partir de quantidade × preco_medio quando ausente
         if valor_atual == 0 and quantidade > 0 and preco_medio > 0:
             valor_atual = float(quantidade) * preco_medio
+
+        # Rejeitar posição sem valor — não corromper com valor fictício
+        if valor_atual <= 0:
+            logger.warning(
+                "posicao_ignorada_valor_zero",
+                extra={"ticker": raw.get("ticker"), "quantidade": str(quantidade)},
+            )
+            return None
 
         def to_str_or_none(key: str) -> str | None:
             val = raw.get(key)
@@ -238,7 +259,7 @@ class PdfPlumberClaudeParser:
             nome=str(raw.get("nome", raw.get("ticker", "Ativo Desconhecido"))).strip(),
             quantidade=quantidade,
             preco_medio=preco_medio,
-            valor_atual=max(0.01, valor_atual),  # Mínimo R$0,01 para ser válido
+            valor_atual=valor_atual,
             classe_ativo=str(raw.get("classe_ativo", "ACAO")).upper().strip(),
             setor=str(raw.get("setor", "Não classificado")).strip(),
             emissor=str(raw.get("emissor", raw.get("nome", "Desconhecido"))).strip(),

@@ -3,6 +3,10 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from src.adapters.outbound.market_data.bcb_sgs_provider import BcbSgsProvider
 
 logger = logging.getLogger(__name__)
 
@@ -12,13 +16,14 @@ class YFinanceHistoricalProvider:
 
     Usa sufixo .SA para ativos B3.
     Ativos de Renda Fixa (sem sufixo .SA) retornam lista vazia.
+    CDI e IPCA são buscados do BCB SGS quando o provider estiver injetado.
     """
 
     # Ativos que são RF e não têm cotação em bolsa
     _RF_PREFIXES = ("TESOURO", "CDB", "LCI", "LCA", "LFT", "NTN", "DEBENTURE", "CRI", "CRA")
 
-    def __init__(self) -> None:
-        pass
+    def __init__(self, bcb_sgs_provider: "BcbSgsProvider | None" = None) -> None:
+        self._bcb = bcb_sgs_provider
 
     async def fetch_daily_returns(
         self, ticker: str, period_days: int = 252
@@ -53,16 +58,27 @@ class YFinanceHistoricalProvider:
         Returns:
             Lista de retornos diários.
         """
-        symbol_map = {
-            "IBOV": "^BVSP",
-            "CDI": None,   # CDI vem do BCB SGS
-            "IPCA": None,  # IPCA vem do BCB SGS
-        }
+        benchmark_upper = benchmark.upper()
 
-        symbol = symbol_map.get(benchmark.upper())
-        if symbol is None:
-            # Para CDI/IPCA, usa retorno fixo diário aproximado
+        if benchmark_upper == "CDI":
+            if self._bcb is not None:
+                try:
+                    retornos = await self._bcb.fetch_cdi_diario(period_days)
+                    if retornos:
+                        return retornos
+                except Exception as exc:
+                    logger.warning("bcb_cdi_fetch_falhou, usando aproximação: %s", exc)
             return self._cdi_approximation(period_days)
+
+        if benchmark_upper == "IPCA":
+            # IPCA é mensal; aproximação diária é aceitável para benchmarking
+            return self._cdi_approximation(period_days)
+
+        symbol_map = {"IBOV": "^BVSP"}
+        symbol = symbol_map.get(benchmark_upper)
+        if symbol is None:
+            logger.warning("Benchmark desconhecido: %s — retornando lista vazia", benchmark)
+            return []
 
         return await self._fetch_returns(symbol, period_days)
 

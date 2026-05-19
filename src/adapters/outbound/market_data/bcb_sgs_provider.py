@@ -45,6 +45,21 @@ class BcbSgsProvider:
         dados = await self._fetch_serie(BCB_SGS_SELIC, period_days)
         return [float(d["valor"]) / 100.0 for d in dados if d.get("valor") not in (None, "")]
 
+    async def fetch_cdi_atual_aa(self) -> float | None:
+        """Retorna o CDI atual anualizado (% a.a.) a partir do último valor diário do BCB.
+
+        Anualização: (1 + taxa_diaria) ^ 252 - 1.
+        Retorna None se a API estiver indisponível.
+        """
+        dados = await self._fetch_serie(BCB_SGS_CDI, 5)  # últimos 5 dias úteis
+        if not dados:
+            return None
+        try:
+            ultimo_diario = float(dados[-1]["valor"]) / 100.0  # ex: 0.0523% → 0.000523
+            return ((1 + ultimo_diario) ** 252 - 1) * 100.0   # anualizado em % a.a.
+        except (KeyError, ValueError, ZeroDivisionError):
+            return None
+
     async def fetch_ipca_mensal(self, period_months: int = 12) -> list[float]:
         """Busca IPCA mensal do BCB SGS.
 

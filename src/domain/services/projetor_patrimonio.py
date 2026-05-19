@@ -84,6 +84,63 @@ class ProjetorPatrimonio:
 
         return pos
 
+    def projetar_principal(
+        self,
+        posicao: float,
+        indexador: IndexadorProjecao,
+        taxa: float | None,
+        vencimento: date | None,
+        face: float | None,
+        preco_unitario: float | None,
+        premissas: PremissasMercado,
+        data_base: date,
+        ano_alvo: int,
+    ) -> float:
+        """Projeta apenas o PRINCIPAL para ativos com pagamento periódico de cupons.
+
+        Para ativos que pagam cupons semestrais (NTN-B, CRI, CRA, debêntures),
+        o spread/cupom não deve crescer embutido no saldo — ele foi pago separadamente
+        e capturado em GeradorFluxoCaixa. Apenas a correção monetária fica no principal.
+
+        - IPCA: cresce pela inflação, sem o spread de taxa (ex: NTN-B → só IPCA)
+        - PRE : principal é fixo (face value), sem crescimento (cupons são o retorno)
+        - CDI : idêntico a projetar_ativo (juro fica no saldo, não há cupom separado)
+        - MULTI/RV: idêntico a projetar_ativo (fundos não têm cupom periódico separado)
+        """
+        anos_proj = [yr for yr in sorted(p.ano for p in premissas.anos) if yr <= ano_alvo]
+        if not anos_proj:
+            anos_proj = [premissas.anos[0].ano]
+
+        pos = posicao
+
+        for yr in anos_proj:
+            if vencimento and date(yr, 1, 1) > vencimento:
+                break
+
+            prem = premissas.para_ano(yr)
+            frac = self._fracao_ano(yr, vencimento, data_base, ano_alvo)
+
+            if indexador == IndexadorProjecao.IPCA:
+                # Apenas correção monetária — spread sai como cupom
+                pos = pos * (1 + prem.ipca_decimal) ** frac
+            elif indexador == IndexadorProjecao.PRE:
+                # Principal fixo — todo o retorno vem via cupons periódicos
+                pass  # pos permanece inalterado
+            else:
+                # CDI, MULTI, RV: comportamento idêntico ao projetar_ativo
+                pos = self._aplicar_rendimento(
+                    pos, indexador,
+                    taxa if taxa is not None else (100.0 if indexador == IndexadorProjecao.CDI else 0.0),
+                    frac,
+                    prem.cdi_decimal, prem.ipca_decimal,
+                    vencimento, face, preco_unitario, data_base, indexador,
+                )
+
+            if vencimento and yr == vencimento.year:
+                break
+
+        return pos
+
     def projetar_reinvestimento(
         self,
         fluxos_por_ano: dict[int, float],

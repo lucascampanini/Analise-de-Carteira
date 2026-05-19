@@ -7,6 +7,7 @@ from collections import defaultdict
 from datetime import date, datetime
 from uuid import UUID
 
+from src.adapters.outbound.market_data.bcb_sgs_provider import BcbSgsProvider
 from src.application.commands.consolidar_carteiras import (
     AtivoRFInput,
     ConsolidarCarteiras,
@@ -31,10 +32,6 @@ from src.domain.value_objects.premissas_mercado import PremissasMercado
 from src.domain.value_objects.subtipo_renda_fixa import SubtipoRendaFixa
 
 logger = structlog.get_logger(__name__)
-
-# CDI vigente (14.90% a.a. em 12/03/2026 — BCB SGS série 12)
-# Atualizar periodicamente ou injetar via BcbSgsProvider se necessário
-_CDI_ATUAL_AA = 14.90
 
 # Mapeamento tipo string → SubtipoRendaFixa (simplificado para o command)
 _SUBTIPO_MAP: dict[str, SubtipoRendaFixa] = {
@@ -83,20 +80,27 @@ class ConsolidarCarteirasHandler:
         gerador_fluxo: GeradorFluxoCaixa,
         projetor: ProjetorPatrimonio,
         calculador_ir: CalculadorIrRf,
+        bcb_sgs: BcbSgsProvider | None = None,
+        cdi_fallback_aa: float = 14.75,
     ) -> None:
         self._focus = focus_provider
         self._gerador = gerador_fluxo
         self._projetor = projetor
         self._ir = calculador_ir
+        self._bcb = bcb_sgs
+        self._cdi_fallback_aa = cdi_fallback_aa
 
     async def handle(self, command: ConsolidarCarteiras) -> ConsolidacaoDTO:
         """Executa a consolidação e retorna o DTO completo."""
         data_base = date.today()
         anos = list(command.anos_projecao)
 
+        # 0. CDI vigente (BCB SGS em tempo real, fallback em settings)
+        cdi_atual_aa = await self._fetch_cdi_atual()
+
         # 1. Premissas de mercado
         premissas = await self._fetch_premissas(command, anos)
-        logger.info("premissas_carregadas", fonte=premissas.fonte, anos=anos)
+        logger.info("premissas_carregadas", fonte=premissas.fonte, anos=anos, cdi_aa=cdi_atual_aa)
 
         # 2. Gerar fluxos de caixa para todos os ativos RF
         todos_fluxos = []
@@ -160,7 +164,7 @@ class ConsolidarCarteirasHandler:
         return ConsolidacaoDTO(
             data_referencia=data_base.isoformat(),
             fonte_premissas=premissas.fonte,
-            cdi_atual_aa=_CDI_ATUAL_AA,
+            cdi_atual_aa=cdi_atual_aa,
             total_rf_fundos=total_rf,
             total_acoes=total_acoes,
             total_geral=total_geral,
@@ -185,6 +189,19 @@ class ConsolidarCarteirasHandler:
         )
 
     # ── Helpers privados ──────────────────────────────────────────────────
+
+    async def _fetch_cdi_atual(self) -> float:
+        """Busca CDI atual do BCB SGS; usa fallback de settings se indisponível."""
+        if self._bcb is not None:
+            try:
+                cdi = await self._bcb.fetch_cdi_atual_aa()
+                if cdi is not None:
+                    logger.info("cdi_atual_bcb", cdi_aa=round(cdi, 4))
+                    return cdi
+            except Exception as exc:
+                logger.warning("bcb_cdi_atual_falhou", error=str(exc))
+        logger.info("cdi_atual_fallback", cdi_aa=self._cdi_fallback_aa)
+        return self._cdi_fallback_aa
 
     async def _fetch_premissas(
         self, command: ConsolidarCarteiras, anos: list[int]
@@ -256,17 +273,33 @@ class ConsolidarCarteirasHandler:
                 if venc and date(yr, 1, 1) > venc:
                     continue
                 idx_proj = IndexadorProjecao.from_string(ativo.indexador)
-                tot += self._projetor.projetar_ativo(
-                    posicao=ativo.posicao,
-                    indexador=idx_proj,
-                    taxa=ativo.taxa,
-                    vencimento=venc,
-                    face=ativo.face,
-                    preco_unitario=ativo.preco_unitario,
-                    premissas=premissas,
-                    data_base=data_base,
-                    ano_alvo=yr,
-                )
+                # Ativos com cupom periódico: projetar apenas o principal para evitar
+                # double-counting com os fluxos em cf_por_ano (reinvestimento)
+                tem_cupom = ativo.pmt_tipo == "semestral" and bool(ativo.pmt_meses)
+                if tem_cupom:
+                    tot += self._projetor.projetar_principal(
+                        posicao=ativo.posicao,
+                        indexador=idx_proj,
+                        taxa=ativo.taxa,
+                        vencimento=venc,
+                        face=ativo.face,
+                        preco_unitario=ativo.preco_unitario,
+                        premissas=premissas,
+                        data_base=data_base,
+                        ano_alvo=yr,
+                    )
+                else:
+                    tot += self._projetor.projetar_ativo(
+                        posicao=ativo.posicao,
+                        indexador=idx_proj,
+                        taxa=ativo.taxa,
+                        vencimento=venc,
+                        face=ativo.face,
+                        preco_unitario=ativo.preco_unitario,
+                        premissas=premissas,
+                        data_base=data_base,
+                        ano_alvo=yr,
+                    )
 
             reinvest = self._projetor.projetar_reinvestimento(
                 cf_por_ano, premissas, anos, yr,
@@ -309,17 +342,31 @@ class ConsolidarCarteirasHandler:
                     if venc and date(yr, 1, 1) > venc:
                         continue
                     idx_proj = IndexadorProjecao.from_string(ativo.indexador)
-                    tot += self._projetor.projetar_ativo(
-                        posicao=ativo.posicao,
-                        indexador=idx_proj,
-                        taxa=ativo.taxa,
-                        vencimento=venc,
-                        face=ativo.face,
-                        preco_unitario=ativo.preco_unitario,
-                        premissas=prem_adj,
-                        data_base=data_base,
-                        ano_alvo=yr,
-                    )
+                    tem_cupom = ativo.pmt_tipo == "semestral" and bool(ativo.pmt_meses)
+                    if tem_cupom:
+                        tot += self._projetor.projetar_principal(
+                            posicao=ativo.posicao,
+                            indexador=idx_proj,
+                            taxa=ativo.taxa,
+                            vencimento=venc,
+                            face=ativo.face,
+                            preco_unitario=ativo.preco_unitario,
+                            premissas=prem_adj,
+                            data_base=data_base,
+                            ano_alvo=yr,
+                        )
+                    else:
+                        tot += self._projetor.projetar_ativo(
+                            posicao=ativo.posicao,
+                            indexador=idx_proj,
+                            taxa=ativo.taxa,
+                            vencimento=venc,
+                            face=ativo.face,
+                            preco_unitario=ativo.preco_unitario,
+                            premissas=prem_adj,
+                            data_base=data_base,
+                            ano_alvo=yr,
+                        )
                 reinvest = self._projetor.projetar_reinvestimento(
                     cf_por_ano, prem_adj, anos, yr,
                 )

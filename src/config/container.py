@@ -5,6 +5,7 @@ from __future__ import annotations
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.adapters.outbound.llm.claude_chat_adapter import ClaudeChatAdapter
+from src.adapters.outbound.market_data.bcb_sgs_provider import BcbSgsProvider
 from src.adapters.outbound.market_data.brapi_data_provider import BrapiDataProvider
 from src.adapters.outbound.market_data.yfinance_fundamentals_provider import (
     YFinanceFundamentalsProvider,
@@ -71,18 +72,15 @@ from src.domain.services.gerador_recomendacoes import GeradorRecomendacoes
 from src.domain.services.projetor_patrimonio import ProjetorPatrimonio
 
 
-class Container:
-    """Composition Root com Pure DI.
+class SharedServices:
+    """Serviços stateless criados uma vez no startup da aplicação.
 
-    Cria e conecta todas as dependências concretas.
-    Constructor Injection apenas.
+    Domain services e adapters sem estado são criados aqui e reutilizados
+    em todas as requests, eliminando instanciação desnecessária por request.
     """
 
-    def __init__(self, settings: Settings, session: AsyncSession) -> None:
-        self._settings = settings
-        self._session = session
-
-        # ===== DOMAIN SERVICES (stateless, shared) =====
+    def __init__(self, settings: Settings) -> None:
+        # ===== DOMAIN SERVICES (stateless) =====
         self.calculador_ir_rf = CalculadorIrRf()
         self.gerador_fluxo_caixa = GeradorFluxoCaixa(calculador_ir=self.calculador_ir_rf)
         self.projetor_patrimonio = ProjetorPatrimonio()
@@ -94,35 +92,48 @@ class Container:
         self.calculador_aderencia = CalculadorAderencia()
         self.gerador_recomendacoes = GeradorRecomendacoes()
 
-        # ===== DRIVEN ADAPTERS (outbound) — Existentes =====
-        self.company_repository = SqlAlchemyCompanyRepository(session)
-        self.analysis_repository = SqlAlchemyAnalysisRepository(session)
+        # ===== DRIVEN ADAPTERS stateless =====
+        self.bcb_sgs_provider = BcbSgsProvider()
+        self.historical_price_provider = YFinanceHistoricalProvider(
+            bcb_sgs_provider=self.bcb_sgs_provider
+        )
+        self.fundamentals_provider = YFinanceFundamentalsProvider()
         self.financial_data_provider = BrapiDataProvider(brapi_token=settings.brapi_token)
-
-        # ===== DRIVEN ADAPTERS (outbound) — Carteira =====
-        self.cliente_repository = SqlAlchemyClienteRepository(session)
-        self.carteira_repository = SqlAlchemyCarteiraRepository(session)
-        self.analise_carteira_repository = SqlAlchemyAnaliseCarteiraRepository(session)
-
         self.pdf_parser = PdfPlumberClaudeParser(
             anthropic_api_key=settings.anthropic_api_key,
         )
         self.excel_parser = OpenpyxlCarteiraParser()
-        self.historical_price_provider = YFinanceHistoricalProvider()
-        self.fundamentals_provider = YFinanceFundamentalsProvider()
         self.report_generator = WeasyPrintReportGenerator()
         self.focus_provider = BcbFocusProvider()
         self.excel_generator = OpenpyxlExcelGenerator()
+        self.llm_adapter = ClaudeChatAdapter(api_key=settings.anthropic_api_key)
 
-        # ===== COMMAND HANDLERS — Existentes =====
+        # Fallback de CDI para quando BCB SGS estiver indisponível
+        self.cdi_fallback_aa = settings.cdi_atual_aa_fallback
+
+
+class Container:
+    """Dependências por request — apenas o que precisa de AsyncSession.
+
+    Recebe SharedServices (criado no startup) e a session da request atual.
+    Handlers são criados aqui pois composem repositórios (stateful) + serviços compartilhados.
+    """
+
+    def __init__(self, shared: SharedServices, session: AsyncSession) -> None:
+        # ===== REPOSITORIES (precisam de session) =====
+        self.company_repository = SqlAlchemyCompanyRepository(session)
+        self.analysis_repository = SqlAlchemyAnalysisRepository(session)
+        self.cliente_repository = SqlAlchemyClienteRepository(session)
+        self.carteira_repository = SqlAlchemyCarteiraRepository(session)
+        self.analise_carteira_repository = SqlAlchemyAnaliseCarteiraRepository(session)
+
+        # ===== COMMAND HANDLERS =====
         self.analyze_company_handler = AnalyzeCompanyBalanceSheetHandler(
-            financial_data_provider=self.financial_data_provider,
+            financial_data_provider=shared.financial_data_provider,
             company_repository=self.company_repository,
             analysis_repository=self.analysis_repository,
-            analyzer=self.analyzer,
+            analyzer=shared.analyzer,
         )
-
-        # ===== COMMAND HANDLERS — Carteira =====
         self.criar_cliente_handler = CriarClienteHandler(
             cliente_repository=self.cliente_repository,
         )
@@ -130,29 +141,37 @@ class Container:
             carteira_repository=self.carteira_repository,
             cliente_repository=self.cliente_repository,
             analise_repository=self.analise_carteira_repository,
-            historical_price_provider=self.historical_price_provider,
-            analisador_alocacao=self.analisador_alocacao,
-            analisador_concentracao=self.analisador_concentracao,
-            calculador_risco=self.calculador_risco,
-            calculador_aderencia=self.calculador_aderencia,
-            gerador_recomendacoes=self.gerador_recomendacoes,
-            fundamentals_provider=self.fundamentals_provider,
-            analisador_alavancagem=self.analisador_alavancagem,
+            historical_price_provider=shared.historical_price_provider,
+            analisador_alocacao=shared.analisador_alocacao,
+            analisador_concentracao=shared.analisador_concentracao,
+            calculador_risco=shared.calculador_risco,
+            calculador_aderencia=shared.calculador_aderencia,
+            gerador_recomendacoes=shared.gerador_recomendacoes,
+            fundamentals_provider=shared.fundamentals_provider,
+            analisador_alavancagem=shared.analisador_alavancagem,
         )
         self.processar_extrato_handler = ProcessarExtratoHandler(
-            pdf_parser=self.pdf_parser,
+            pdf_parser=shared.pdf_parser,
             cliente_repository=self.cliente_repository,
             carteira_repository=self.carteira_repository,
             analisar_handler=self.analisar_carteira_handler,
         )
         self.processar_excel_handler = ProcessarExcelHandler(
-            excel_parser=self.excel_parser,
+            excel_parser=shared.excel_parser,
             cliente_repository=self.cliente_repository,
             carteira_repository=self.carteira_repository,
             analisar_handler=self.analisar_carteira_handler,
         )
+        self.consolidar_carteiras_handler = ConsolidarCarteirasHandler(
+            focus_provider=shared.focus_provider,
+            gerador_fluxo=shared.gerador_fluxo_caixa,
+            projetor=shared.projetor_patrimonio,
+            calculador_ir=shared.calculador_ir_rf,
+            bcb_sgs=shared.bcb_sgs_provider,
+            cdi_fallback_aa=shared.cdi_fallback_aa,
+        )
 
-        # ===== QUERY HANDLERS — Existentes =====
+        # ===== QUERY HANDLERS =====
         self.get_analysis_handler = GetCompanyAnalysisHandler(
             company_repository=self.company_repository,
             analysis_repository=self.analysis_repository,
@@ -165,33 +184,21 @@ class Container:
             company_repository=self.company_repository,
             analysis_repository=self.analysis_repository,
         )
-
-        # ===== QUERY HANDLERS — Carteira =====
-        # Construídos antes do ChatHandler pois ele depende de get_analise_carteira_handler
         self.get_analise_carteira_handler = GetAnaliseCarteiraHandler(
             analise_repository=self.analise_carteira_repository,
             carteira_repository=self.carteira_repository,
-            calculador_aderencia=self.calculador_aderencia,
+            calculador_aderencia=shared.calculador_aderencia,
         )
         self.get_relatorio_handler = GetRelatorioCarteiraHandler(
             analise_repository=self.analise_carteira_repository,
             carteira_repository=self.carteira_repository,
             cliente_repository=self.cliente_repository,
-            calculador_aderencia=self.calculador_aderencia,
+            calculador_aderencia=shared.calculador_aderencia,
         )
 
-        # ===== COMMAND HANDLERS — Consolidação =====
-        self.consolidar_carteiras_handler = ConsolidarCarteirasHandler(
-            focus_provider=self.focus_provider,
-            gerador_fluxo=self.gerador_fluxo_caixa,
-            projetor=self.projetor_patrimonio,
-            calculador_ir=self.calculador_ir_rf,
-        )
-
-        # ===== CHAT HANDLER (LLM + tool use) =====
-        self._llm_adapter = ClaudeChatAdapter(api_key=settings.anthropic_api_key)
+        # ===== CHAT HANDLER =====
         self.chat_handler = ChatHandler(
-            llm_port=self._llm_adapter,
+            llm_port=shared.llm_adapter,
             criar_cliente_handler=self.criar_cliente_handler,
             analisar_carteira_handler=self.analisar_carteira_handler,
             get_analise_handler=self.get_analise_carteira_handler,

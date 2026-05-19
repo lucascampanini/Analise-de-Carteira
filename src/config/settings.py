@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     telegram_bot_token: str = ""
 
+    # Taxas de mercado — fallback quando BCB SGS estiver indisponível
+    # Atualizar conforme COPOM ou deixar o sistema buscar automaticamente
+    cdi_atual_aa_fallback: float = 14.75  # CDI vigente em % a.a.
+
     # yfinance
     yfinance_period_days: int = 252
 

@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import structlog
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from src.application.commands.analisar_carteira import AnalisarCarteira
+
+logger = structlog.get_logger(__name__)
 from src.application.ports.outbound.analise_carteira_repository import AnaliseCarteiraRepository
 from src.application.ports.outbound.carteira_repository import CarteiraRepository
 from src.application.ports.outbound.cliente_repository import ClienteRepository
@@ -130,6 +133,12 @@ class AnalisarCarteiraHandler:
                     if retornos:
                         retornos_por_ativo[ticker] = retornos
                         pesos[ticker] = posicao.valor_atual.cents / pl.cents
+                    else:
+                        logger.warning("historico_indisponivel", ticker=ticker)
+                        alertas.append(
+                            f"⚠ Histórico de preços indisponível para {ticker}"
+                            " — risco calculado sem este ativo"
+                        )
 
             # 6b. Buscar indicadores de alavancagem para ACAO e BDR
             alavancagem_por_ticker: dict[str, IndicadoresAlavancagem] = {}
@@ -146,8 +155,13 @@ class AnalisarCarteiraHandler:
                         )
                         if ind is not None:
                             alavancagem_por_ticker[ticker] = ind
-                    except Exception:
-                        pass  # falha silenciosa por ticker individual
+                    except Exception as exc:
+                        logger.warning(
+                            "alavancagem_fetch_falhou", ticker=ticker, error=str(exc)
+                        )
+                        alertas.append(
+                            f"⚠ Dados de alavancagem indisponíveis para {ticker}"
+                        )
 
             # Alertas de alavancagem incorporados aos alertas gerais
             alertas.extend(
