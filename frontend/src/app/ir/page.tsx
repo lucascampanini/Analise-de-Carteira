@@ -1,16 +1,17 @@
 'use client';
 import { Suspense, useEffect, useState } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { doc, getDoc } from 'firebase/firestore';
 import Link from 'next/link';
 import {
   Upload, AlertTriangle, TrendingDown, BarChart2,
   Calendar, ChevronRight, Receipt, Trash2,
   LayoutGrid, FileText, PieChart, CalendarDays,
+  UserPlus, X,
 } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/contexts/AuthContext';
-import { getClientes } from '@/lib/firestore';
+import { getClientes, criarClienteIR } from '@/lib/firestore';
 import { getNotasCorretagem, excluirNota } from '@/lib/ir/firestore';
 import { recalcularPMCompleto } from '@/lib/ir/pm-calculator';
 import { recalcularApuracoesCompleto } from '@/lib/ir/apuracao-mensal';
@@ -67,9 +68,17 @@ const TABS: { id: TabId; label: string; icon: React.ElementType }[] = [
 
 function IRClientePicker() {
   const { user } = useAuth();
+  const router = useRouter();
   const [clientes, setClientes] = useState<Array<{ id: string; nome: string; codigo_conta: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
+
+  const [showModal, setShowModal] = useState(false);
+  const [nome, setNome] = useState('');
+  const [codigoConta, setCodigoConta] = useState('');
+  const [suitability, setSuitability] = useState('');
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState('');
 
   useEffect(() => {
     if (!user) return;
@@ -89,44 +98,167 @@ function IRClientePicker() {
     ? clientes.filter((c) => norm(c.nome).includes(norm(busca)) || c.codigo_conta.includes(busca))
     : clientes;
 
+  const abrirModal = () => {
+    setNome('');
+    setCodigoConta('');
+    setSuitability('');
+    setErro('');
+    setShowModal(true);
+  };
+
+  const fecharModal = () => {
+    setShowModal(false);
+    setErro('');
+  };
+
+  const handleCriar = async () => {
+    if (!user) return;
+    const nomeTrimmed = nome.trim();
+    const codigoTrimmed = codigoConta.trim();
+    if (!nomeTrimmed) { setErro('Nome é obrigatório.'); return; }
+    if (!codigoTrimmed) { setErro('Código da conta é obrigatório.'); return; }
+    setSalvando(true);
+    setErro('');
+    try {
+      await criarClienteIR(user.uid, {
+        nome: nomeTrimmed,
+        codigo_conta: codigoTrimmed,
+        suitability: suitability || undefined,
+      });
+      router.push(`/ir?clienteId=${codigoTrimmed}`);
+    } catch {
+      setErro('Erro ao criar cliente. Tente novamente.');
+      setSalvando(false);
+    }
+  };
+
   return (
-    <div className="space-y-6 max-w-2xl">
-      <div className="flex items-center gap-3">
-        <Receipt size={22} className="text-svn-ruby shrink-0" />
-        <h1 className="text-2xl font-bold text-slate-800">Apuração de IR</h1>
+    <>
+      <div className="space-y-6 max-w-2xl">
+        <div className="flex items-center gap-3">
+          <Receipt size={22} className="text-svn-ruby shrink-0" />
+          <h1 className="text-2xl font-bold text-slate-800">Apuração de IR</h1>
+          <button
+            onClick={abrirModal}
+            className="ml-auto flex items-center gap-2 px-3 py-1.5 text-sm text-svn-ruby border border-svn-ruby/30 rounded-lg hover:bg-red-50 transition-colors"
+          >
+            <UserPlus size={14} />
+            Novo cliente
+          </button>
+        </div>
+        <p className="text-sm text-slate-500">Selecione um cliente para acessar o módulo de IR.</p>
+
+        <input
+          type="text"
+          placeholder="Buscar cliente…"
+          value={busca}
+          onChange={(e) => setBusca(e.target.value)}
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby/30"
+        />
+
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
+          {loading ? (
+            <div className="p-8 text-center text-slate-400 text-sm">Carregando clientes…</div>
+          ) : filtrados.length === 0 ? (
+            <div className="p-8 text-center text-slate-400 text-sm">
+              Nenhum cliente encontrado.{' '}
+              <button onClick={abrirModal} className="text-svn-ruby underline">
+                Criar novo?
+              </button>
+            </div>
+          ) : (
+            filtrados.map((c) => (
+              <Link
+                key={c.id}
+                href={`/ir?clienteId=${c.codigo_conta}`}
+                className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors group"
+              >
+                <div>
+                  <p className="text-sm font-medium text-slate-800 group-hover:text-svn-ruby transition-colors">{c.nome}</p>
+                  <p className="text-xs text-slate-400 font-mono mt-0.5">{c.codigo_conta}</p>
+                </div>
+                <ChevronRight size={16} className="text-slate-300 group-hover:text-svn-ruby transition-colors" />
+              </Link>
+            ))
+          )}
+        </div>
       </div>
-      <p className="text-sm text-slate-500">Selecione um cliente para acessar o módulo de IR.</p>
 
-      <input
-        type="text"
-        placeholder="Buscar cliente…"
-        value={busca}
-        onChange={(e) => setBusca(e.target.value)}
-        className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby/30"
-      />
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-md mx-4 p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="font-semibold text-slate-800">Novo cliente — IR</h2>
+              <button onClick={fecharModal} className="text-slate-400 hover:text-slate-600">
+                <X size={18} />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              Cliente criado apenas com dados básicos para uso no módulo de IR.
+              Pode ser completado depois na lista de clientes.
+            </p>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
-        {loading ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Carregando clientes…</div>
-        ) : filtrados.length === 0 ? (
-          <div className="p-8 text-center text-slate-400 text-sm">Nenhum cliente encontrado.</div>
-        ) : (
-          filtrados.map((c) => (
-            <Link
-              key={c.id}
-              href={`/ir?clienteId=${c.codigo_conta}`}
-              className="flex items-center justify-between px-5 py-3.5 hover:bg-slate-50 transition-colors group"
-            >
+            <div className="space-y-3">
               <div>
-                <p className="text-sm font-medium text-slate-800 group-hover:text-svn-ruby transition-colors">{c.nome}</p>
-                <p className="text-xs text-slate-400 font-mono mt-0.5">{c.codigo_conta}</p>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Nome *</label>
+                <input
+                  type="text"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  placeholder="Nome completo"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby/30"
+                />
               </div>
-              <ChevronRight size={16} className="text-slate-300 group-hover:text-svn-ruby transition-colors" />
-            </Link>
-          ))
-        )}
-      </div>
-    </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">Código XP *</label>
+                <input
+                  type="text"
+                  value={codigoConta}
+                  onChange={(e) => setCodigoConta(e.target.value)}
+                  placeholder="Ex: 1234567"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-svn-ruby/30"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-600 mb-1">
+                  Suitability <span className="text-slate-400 font-normal">(opcional)</span>
+                </label>
+                <select
+                  value={suitability}
+                  onChange={(e) => setSuitability(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-svn-ruby/30"
+                >
+                  <option value="">— Selecionar —</option>
+                  <option value="Conservador">Conservador</option>
+                  <option value="Moderado">Moderado</option>
+                  <option value="Arrojado">Arrojado</option>
+                  <option value="Agressivo">Agressivo</option>
+                </select>
+              </div>
+            </div>
+
+            {erro && <p className="text-xs text-svn-ruby">{erro}</p>}
+
+            <div className="flex gap-2 justify-end pt-1">
+              <button
+                onClick={fecharModal}
+                className="px-4 py-2 text-sm text-slate-500 hover:text-slate-700 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleCriar}
+                disabled={salvando}
+                className="flex items-center gap-2 px-4 py-2 bg-svn-carbon text-white text-sm font-medium rounded-lg hover:bg-[#2e2420] disabled:opacity-40 transition-colors"
+              >
+                <UserPlus size={14} />
+                {salvando ? 'Criando…' : 'Criar e acessar IR'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

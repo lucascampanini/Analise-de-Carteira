@@ -40,6 +40,21 @@ export async function importarClientes(uid: string, clientes: any[]) {
   return clientes.length;
 }
 
+export async function criarClienteIR(
+  uid: string,
+  dados: { nome: string; codigo_conta: string; suitability?: string }
+) {
+  const ref = doc(col(uid, "clientes"), dados.codigo_conta);
+  await setDoc(ref, {
+    nome: dados.nome,
+    codigo_conta: dados.codigo_conta,
+    ...(dados.suitability ? { suitability: dados.suitability } : {}),
+    net: 0,
+    importado_em: new Date().toISOString(),
+    origem: "ir_manual",
+  });
+}
+
 // ──────────────────────────────────────────────
 // ANOTAÇÕES
 // ──────────────────────────────────────────────
@@ -236,15 +251,20 @@ export async function deleteClienteOferta(uid: string, id: string) {
 }
 
 export async function importarClientesOferta(uid: string, ofertaId: string, clientes: any[]) {
+  const snap = await getDocs(query(col(uid, "oferta_clientes"), where("oferta_id", "==", ofertaId)));
+  const existentes = new Set(snap.docs.map((d) => d.data().codigo_conta));
+  let inseridos = 0;
   for (const c of clientes) {
+    if (existentes.has(c.codigo_conta)) continue;
     await addDoc(col(uid, "oferta_clientes"), {
       ...c,
       oferta_id: ofertaId,
       status: c.status || "PENDENTE",
       criado_em: serverTimestamp(),
     });
+    inseridos++;
   }
-  return clientes.length;
+  return inseridos;
 }
 
 // ──────────────────────────────────────────────
