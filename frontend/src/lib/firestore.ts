@@ -324,6 +324,9 @@ export async function importarPosicoes(uid: string, conta: string, posicoes: any
     posicoes: posicoes.map((p) => ({ ...p, codigo_conta: conta })),
     importado_em: new Date().toISOString(),
   });
+  // Sincroniza net no cliente a partir da soma das posições
+  const net = posicoes.reduce((s, p) => s + (p.valor || 0), 0);
+  await setDoc(doc(col(uid, "clientes"), conta), { net }, { merge: true });
   return posicoes.length;
 }
 
@@ -338,6 +341,8 @@ export async function importarPosicoesMulti(uid: string, posicoes: any[]) {
 
   const entries = Array.from(porConta.entries());
   const importado_em = new Date().toISOString();
+
+  // 1. Salva posições
   for (let i = 0; i < entries.length; i += 400) {
     const b = writeBatch(db);
     entries.slice(i, i + 400).forEach(([conta, pos]) => {
@@ -346,6 +351,18 @@ export async function importarPosicoesMulti(uid: string, posicoes: any[]) {
     });
     await b.commit();
   }
+
+  // 2. Sincroniza net nos clientes a partir da soma das posições importadas
+  for (let i = 0; i < entries.length; i += 400) {
+    const b = writeBatch(db);
+    entries.slice(i, i + 400).forEach(([conta, pos]) => {
+      const net = pos.reduce((s: number, p: any) => s + (p.valor || 0), 0);
+      const ref = doc(col(uid, "clientes"), conta);
+      b.set(ref, { net }, { merge: true });
+    });
+    await b.commit();
+  }
+
   return posicoes.length;
 }
 
