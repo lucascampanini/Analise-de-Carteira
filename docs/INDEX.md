@@ -146,6 +146,19 @@
 - 8 teses brasileiras (USP, FGV, IMPA)
 - Competições (Kaggle, Numerai, WorldQuant)
 
+### 14 - SPIN Selling e Técnicas de Persuasão para Assessoria
+**Arquivo:** [`14-spin-selling-vendas/spin-selling-assessoria.md`](14-spin-selling-vendas/spin-selling-assessoria.md)
+**Fontes:** 26 | **Linhas:** ~1.100
+- SPIN Selling (Rackham, 1988) — base empírica de 35.000+ chamadas analisadas
+- Challenger Sale (Dixon & Adamson, 2011) — perfis, Teach-Tailor-Take Control
+- Behavioral Finance como alavanca: Loss Aversion, Endowment Effect, Status Quo Bias, Mental Accounting
+- Framework PRECARE para neutralização de vieses cognitivos
+- Trust Equation (Maister) — credibilidade, confiabilidade, intimidade, auto-orientação
+- Banco completo de perguntas SPIN por categoria para assessoria de investimentos
+- Scripts prontos por cenário: rebalanceamento, concentração, oferta de produto, prejuízo
+- Matriz completa de objeções com respostas estruturadas
+- Integrado ao sistema: `GeradorArgumentoVenda` (domain service) + endpoint REST
+
 ### Referências Consolidadas
 **Arquivo:** [`referencias/referencias-consolidadas.md`](referencias/referencias-consolidadas.md)
 **Fontes:** 75 (lista mestra)
@@ -158,12 +171,12 @@
 
 | Métrica | Valor |
 |---------|-------|
-| Total de documentos | 13 |
-| Total de fontes (com sobreposições) | 496+ |
-| Fontes únicas estimadas | 350+ |
-| Linhas de conteúdo | 10.000+ |
-| Áreas temáticas | 12 |
-| Classes Python prontas | 20+ |
+| Total de documentos | 14 |
+| Total de fontes (com sobreposições) | 522+ |
+| Fontes únicas estimadas | 376+ |
+| Linhas de conteúdo | 11.100+ |
+| Áreas temáticas | 13 |
+| Classes Python prontas | 23+ |
 | Frameworks comparados | 6+ |
 | Gestoras analisadas | 13 |
 | Cenários de stress test | 8 históricos + 5 hipotéticos |

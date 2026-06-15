@@ -31,6 +31,7 @@ from src.adapters.outbound.persistence.sqlalchemy.repositories.sqlalchemy_compan
     SqlAlchemyCompanyRepository,
 )
 from src.adapters.outbound.market_data.bcb_focus_provider import BcbFocusProvider
+from src.adapters.outbound.market_data.macro_context_provider import MacroContextProvider
 from src.adapters.outbound.report.openpyxl_excel_generator import OpenpyxlExcelGenerator
 from src.adapters.outbound.report.weasyprint_report_generator import WeasyPrintReportGenerator
 from src.application.handlers.command_handlers.analyze_company_handler import (
@@ -59,6 +60,9 @@ from src.application.handlers.query_handlers.get_analise_carteira_handler import
     GetAnaliseCarteiraHandler,
     GetRelatorioCarteiraHandler,
 )
+from src.application.handlers.query_handlers.gerar_argumento_venda_handler import (
+    GerarArgumentoVendaHandler,
+)
 from src.config.settings import Settings
 from src.domain.services.analisador_alavancagem import AnalisadorAlavancagem
 from src.domain.services.analisador_alocacao import AnalisadorAlocacao
@@ -67,6 +71,7 @@ from src.domain.services.balance_sheet_analyzer import BalanceSheetAnalyzer
 from src.domain.services.calculador_aderencia import CalculadorAderencia
 from src.domain.services.calculador_risco import CalculadorRisco
 from src.domain.services.calculador_ir_rf import CalculadorIrRf
+from src.domain.services.gerador_argumento_venda import GeradorArgumentoVenda
 from src.domain.services.gerador_fluxo_caixa import GeradorFluxoCaixa
 from src.domain.services.gerador_recomendacoes import GeradorRecomendacoes
 from src.domain.services.projetor_patrimonio import ProjetorPatrimonio
@@ -91,6 +96,7 @@ class SharedServices:
         self.calculador_risco = CalculadorRisco()
         self.calculador_aderencia = CalculadorAderencia()
         self.gerador_recomendacoes = GeradorRecomendacoes()
+        self.gerador_argumento_venda = GeradorArgumentoVenda()
 
         # ===== DRIVEN ADAPTERS stateless =====
         self.bcb_sgs_provider = BcbSgsProvider()
@@ -107,6 +113,7 @@ class SharedServices:
         self.focus_provider = BcbFocusProvider()
         self.excel_generator = OpenpyxlExcelGenerator()
         self.llm_adapter = ClaudeChatAdapter(api_key=settings.anthropic_api_key)
+        self.macro_context_provider = MacroContextProvider(bcb_provider=self.bcb_sgs_provider)
 
         # Fallback de CDI para quando BCB SGS estiver indisponível
         self.cdi_fallback_aa = settings.cdi_atual_aa_fallback
@@ -195,6 +202,11 @@ class Container:
             cliente_repository=self.cliente_repository,
             calculador_aderencia=shared.calculador_aderencia,
         )
+        self.gerar_argumento_venda_handler = GerarArgumentoVendaHandler(
+            analise_repository=self.analise_carteira_repository,
+            cliente_repository=self.cliente_repository,
+            gerador_argumento=shared.gerador_argumento_venda,
+        )
 
         # ===== CHAT HANDLER =====
         self.chat_handler = ChatHandler(
@@ -202,4 +214,5 @@ class Container:
             criar_cliente_handler=self.criar_cliente_handler,
             analisar_carteira_handler=self.analisar_carteira_handler,
             get_analise_handler=self.get_analise_carteira_handler,
+            macro_context_provider=shared.macro_context_provider,
         )

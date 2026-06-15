@@ -9,16 +9,24 @@ from fastapi.responses import Response
 
 from src.adapters.inbound.rest.carteira_schemas import (
     AnaliseCarteiraResponse,
+    ArgumentosVendaAnaliseResponse,
+    ArgumentoVendaResponse,
     CriarClienteRequest,
     CriarClienteResponse,
+    ObjecaoRespostaResponse,
     PosicaoResponse,
     RecomendacaoResponse,
+    SpinQuestoesResponse,
     UploadExtratoResponse,
 )
 from src.application.commands.criar_cliente import CriarCliente
 from src.application.commands.processar_extrato import ProcessarExtrato
 from src.application.commands.processar_excel import ProcessarExcel
 from src.application.queries.get_analise_carteira import GetAnaliseCarteira, GetRelatorioCarteira
+from src.application.queries.gerar_argumento_venda import (
+    GerarArgumentoVenda,
+    GerarArgumentoVendaPorRecomendacao,
+)
 from src.config.container import Container
 
 router = APIRouter(prefix="/api/v1/carteira", tags=["carteira"])
@@ -247,4 +255,104 @@ async def download_relatorio(request: Request, analise_id: str) -> Response:
         headers={
             "Content-Disposition": f'attachment; filename="analise_{analise_id}.pdf"',
         },
+    )
+
+
+@router.get(
+    "/analise/{analise_id}/argumentos-venda",
+    response_model=ArgumentosVendaAnaliseResponse,
+    summary="Gera argumentos SPIN para todas as recomendações",
+)
+async def get_argumentos_venda(
+    request: Request, analise_id: str
+) -> ArgumentosVendaAnaliseResponse:
+    """Retorna argumentos de venda estruturados via SPIN Selling para cada recomendação.
+
+    Inclui perguntas Situation/Problem/Implication/Need-Payoff, script de WhatsApp,
+    objeções previstas com respostas e enquadramento Challenger Sale.
+    """
+    container = _get_container(request)
+    query = GerarArgumentoVenda(analise_id=analise_id)
+
+    try:
+        dto = await container.gerar_argumento_venda_handler.handle(query)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    if dto is None:
+        raise HTTPException(status_code=404, detail=f"Análise {analise_id} não encontrada")
+
+    return ArgumentosVendaAnaliseResponse(
+        analise_id=dto.analise_id,
+        cliente_nome=dto.cliente_nome,
+        perfil_investidor=dto.perfil_investidor,
+        total_recomendacoes=dto.total_recomendacoes,
+        argumentos=[
+            ArgumentoVendaResponse(
+                recomendacao_id=a.recomendacao_id,
+                tipo_recomendacao=a.tipo_recomendacao,
+                ticker=a.ticker,
+                justificativa=a.justificativa,
+                spin=SpinQuestoesResponse(
+                    situation=a.spin.situation,
+                    problem=a.spin.problem,
+                    implication=a.spin.implication,
+                    need_payoff=a.spin.need_payoff,
+                ),
+                challenger_reframe=a.challenger_reframe,
+                script_whatsapp=a.script_whatsapp,
+                objecoes_previstas=[
+                    ObjecaoRespostaResponse(objecao=o.objecao, resposta=o.resposta)
+                    for o in a.objecoes_previstas
+                ],
+                dados_quantitativos=a.dados_quantitativos,
+            )
+            for a in dto.argumentos
+        ],
+    )
+
+
+@router.get(
+    "/analise/{analise_id}/argumentos-venda/{recomendacao_id}",
+    response_model=ArgumentoVendaResponse,
+    summary="Gera argumento SPIN para uma recomendação específica",
+)
+async def get_argumento_venda_por_recomendacao(
+    request: Request, analise_id: str, recomendacao_id: str
+) -> ArgumentoVendaResponse:
+    """Retorna argumento SPIN detalhado para uma recomendação específica."""
+    container = _get_container(request)
+    query = GerarArgumentoVendaPorRecomendacao(
+        analise_id=analise_id, recomendacao_id=recomendacao_id
+    )
+
+    try:
+        dto = await container.gerar_argumento_venda_handler.handle_por_recomendacao(query)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    if dto is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Recomendação {recomendacao_id} não encontrada na análise {analise_id}",
+        )
+
+    return ArgumentoVendaResponse(
+        recomendacao_id=dto.recomendacao_id,
+        tipo_recomendacao=dto.tipo_recomendacao,
+        ticker=dto.ticker,
+        justificativa=dto.justificativa,
+        spin=SpinQuestoesResponse(
+            situation=dto.spin.situation,
+            problem=dto.spin.problem,
+            implication=dto.spin.implication,
+            need_payoff=dto.spin.need_payoff,
+        ),
+        challenger_reframe=dto.challenger_reframe,
+        script_whatsapp=dto.script_whatsapp,
+        objecoes_previstas=[
+            ObjecaoRespostaResponse(objecao=o.objecao, resposta=o.resposta)
+            for o in dto.objecoes_previstas
+        ],
+        dados_quantitativos=dto.dados_quantitativos,
     )

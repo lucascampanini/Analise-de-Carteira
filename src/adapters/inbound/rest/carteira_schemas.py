@@ -55,6 +55,38 @@ class PosicaoResponse(BaseModel):
     lucro_prejuizo: float
 
 
+class SpinQuestoesResponse(BaseModel):
+    situation: list[str]
+    problem: list[str]
+    implication: list[str]
+    need_payoff: list[str]
+
+
+class ObjecaoRespostaResponse(BaseModel):
+    objecao: str
+    resposta: str
+
+
+class ArgumentoVendaResponse(BaseModel):
+    recomendacao_id: str
+    tipo_recomendacao: str
+    ticker: str
+    justificativa: str
+    spin: SpinQuestoesResponse
+    challenger_reframe: str
+    script_whatsapp: str
+    objecoes_previstas: list[ObjecaoRespostaResponse]
+    dados_quantitativos: dict[str, str]
+
+
+class ArgumentosVendaAnaliseResponse(BaseModel):
+    analise_id: str
+    cliente_nome: str
+    perfil_investidor: str
+    total_recomendacoes: int
+    argumentos: list[ArgumentoVendaResponse]
+
+
 class AnaliseCarteiraResponse(BaseModel):
     analise_id: str
     carteira_id: str
