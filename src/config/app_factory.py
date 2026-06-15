@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 from src.adapters.inbound.rest.analysis_controller import router as analysis_router
 from src.adapters.inbound.rest.carteira_controller import router as carteira_router
 from src.adapters.inbound.rest.consolidacao_controller import router as consolidacao_router
+from src.adapters.inbound.rest.prospeccao_controller import router as prospeccao_router
 from src.adapters.outbound.persistence.sqlalchemy.models.orm_models import Base
 from src.config.container import Container, SharedServices
 from src.config.settings import Settings
@@ -134,6 +135,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(analysis_router)
     app.include_router(carteira_router)
     app.include_router(consolidacao_router)
+    app.include_router(prospeccao_router)
     app.include_router(assistente_router)  # === ASSISTENTE MODULE ===
 
     @app.get("/health")

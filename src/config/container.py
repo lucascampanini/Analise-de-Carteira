@@ -63,6 +63,9 @@ from src.application.handlers.query_handlers.get_analise_carteira_handler import
 from src.application.handlers.query_handlers.gerar_argumento_venda_handler import (
     GerarArgumentoVendaHandler,
 )
+from src.application.handlers.query_handlers.gerar_script_prospeccao_handler import (
+    GerarScriptProspeccaoHandler,
+)
 from src.config.settings import Settings
 from src.domain.services.analisador_alavancagem import AnalisadorAlavancagem
 from src.domain.services.analisador_alocacao import AnalisadorAlocacao
@@ -72,6 +75,7 @@ from src.domain.services.calculador_aderencia import CalculadorAderencia
 from src.domain.services.calculador_risco import CalculadorRisco
 from src.domain.services.calculador_ir_rf import CalculadorIrRf
 from src.domain.services.gerador_argumento_venda import GeradorArgumentoVenda
+from src.domain.services.gerador_script_prospeccao import GeradorScriptProspeccao
 from src.domain.services.gerador_fluxo_caixa import GeradorFluxoCaixa
 from src.domain.services.gerador_recomendacoes import GeradorRecomendacoes
 from src.domain.services.projetor_patrimonio import ProjetorPatrimonio
@@ -97,6 +101,7 @@ class SharedServices:
         self.calculador_aderencia = CalculadorAderencia()
         self.gerador_recomendacoes = GeradorRecomendacoes()
         self.gerador_argumento_venda = GeradorArgumentoVenda()
+        self.gerador_script_prospeccao = GeradorScriptProspeccao()
 
         # ===== DRIVEN ADAPTERS stateless =====
         self.bcb_sgs_provider = BcbSgsProvider()
@@ -201,6 +206,9 @@ class Container:
             carteira_repository=self.carteira_repository,
             cliente_repository=self.cliente_repository,
             calculador_aderencia=shared.calculador_aderencia,
+        )
+        self.gerar_script_prospeccao_handler = GerarScriptProspeccaoHandler(
+            gerador=shared.gerador_script_prospeccao,
         )
         self.gerar_argumento_venda_handler = GerarArgumentoVendaHandler(
             analise_repository=self.analise_carteira_repository,
