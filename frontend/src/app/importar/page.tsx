@@ -3,6 +3,7 @@ import { useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { importarClientes, importarPosicoesMulti, importarFundosInfo } from "@/lib/firestore";
+import { resetFirestoreCache } from "@/lib/firebase";
 import * as XLSX from "xlsx";
 import { Upload, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
@@ -20,6 +21,18 @@ async function lerExcel(file: File): Promise<any[]> {
   const wb  = XLSX.read(buf, { type: "array" });
   const ws  = wb.Sheets[wb.SheetNames[0]];
   return XLSX.utils.sheet_to_json<any>(ws, { defval: "" });
+}
+
+function withTimeout<T>(promise: Promise<T>, ms = 30000): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(
+        "A importação travou (mais de 30s sem resposta do Firestore). " +
+        "Feche as outras abas do CRM, recarregue a página e tente novamente."
+      )), ms)
+    ),
+  ]);
 }
 
 const norm = (s: string) =>
@@ -369,8 +382,9 @@ export default function ImportarPage() {
     if (!user || !fileRel || !filePos) return;
     setStClts("loading"); setMsgClts("");
     try {
+      await resetFirestoreCache();
       const { clts, semNomeNoSaldo, debug } = await parsearClientes(fileRel, filePos);
-      const n = await importarClientes(user.uid, clts);
+      const n = await withTimeout(importarClientes(user.uid, clts));
       const semNomeMsg = semNomeNoSaldo > 0
         ? ` · ${semNomeNoSaldo} ignorados (sem nome no Saldo)`
         : "";
@@ -388,9 +402,10 @@ export default function ImportarPage() {
     if (!user || !fileDiv) return;
     setStDiv("loading"); setMsgDiv("");
     try {
+      await resetFirestoreCache();
       const posicoes = await parsearDiversificador(fileDiv);
       const nContas  = new Set(posicoes.map((p: any) => p.codigo_conta)).size;
-      const n = await importarPosicoesMulti(user.uid, posicoes);
+      const n = await withTimeout(importarPosicoesMulti(user.uid, posicoes));
       setMsgDiv(`${n} posições importadas (${nContas} clientes)!`);
       setStDiv("ok");
       triggerRefresh();
@@ -403,8 +418,9 @@ export default function ImportarPage() {
     if (!user || !fileFund) return;
     setStFund("loading"); setMsgFund("");
     try {
+      await resetFirestoreCache();
       const fundos = await parsearListaFundos(fileFund);
-      const n = await importarFundosInfo(user.uid, fundos);
+      const n = await withTimeout(importarFundosInfo(user.uid, fundos));
       setMsgFund(`${n} fundos importados!`);
       setStFund("ok");
       triggerRefresh();
