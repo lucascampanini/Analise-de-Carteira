@@ -1,6 +1,6 @@
 import { initializeApp, getApps, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
-import { initializeFirestore, getFirestore, persistentLocalCache, memoryLocalCache, clearIndexedDbPersistence, terminate, type Firestore } from "firebase/firestore";
+import { initializeFirestore, getFirestore, memoryLocalCache, type Firestore } from "firebase/firestore";
 import { getFunctions, type Functions } from "firebase/functions";
 import { initializeAppCheck, ReCaptchaV3Provider, type AppCheck } from "firebase/app-check";
 
@@ -17,23 +17,21 @@ function getApp(): FirebaseApp {
   });
 }
 
-// Inicializa o Firestore com cache persistente (IndexedDB).
-// Após o primeiro carregamento, os dados vêm do cache local em ms,
-// com sincronização automática em background quando online.
+// Cache em memória (sem IndexedDB): evita travas de lease/conexão zumbi
+// entre abas/sessões que ocorriam com persistentLocalCache. Sem persistência
+// offline — sempre busca do servidor ao recarregar, mas escritas nunca
+// dependem de estado preso em IndexedDB.
 // Módulo-level singleton — garante que a instância criada na primeira chamada
-// (com o cache correto) é reutilizada em hot-reloads sem fallback para a
-// instância errada do getFirestore(app).
+// é reutilizada em hot-reloads sem fallback para a instância errada do
+// getFirestore(app).
 let _dbInstance: Firestore | null = null;
 
 function getDb(): Firestore {
   if (_dbInstance) return _dbInstance;
   const app = getApp();
-  const isLocalhost = typeof window !== 'undefined' && window.location.hostname === 'localhost';
   try {
     _dbInstance = initializeFirestore(app, {
-      // persistentLocalCache: setDoc resolve do IndexedDB instantaneamente
-      // sem esperar o servidor — servidor sincroniza em background
-      localCache: persistentLocalCache(),
+      localCache: memoryLocalCache(),
     });
   } catch {
     // já inicializado por outro módulo — reutiliza
@@ -44,30 +42,6 @@ function getDb(): Firestore {
 
 export function getFirebaseAuth(): Auth {
   return getAuth(getApp());
-}
-
-/**
- * Limpa o IndexedDB do Firestore e reinicializa a instância.
- * Resolve mutations pendentes travadas de sessões anteriores.
- * Chamar antes de importações em lote quando persistentLocalCache está em uso.
- */
-export async function resetFirestoreCache(): Promise<void> {
-  if (typeof window === 'undefined') return;
-  if (_dbInstance) {
-    try {
-      await terminate(_dbInstance);
-    } catch { /* ignora se já terminado */ }
-    _dbInstance = null;
-  }
-  const app = getApp();
-  // Cria instância temporária apenas para limpar o IndexedDB
-  try {
-    const tempDb = initializeFirestore(app, { localCache: persistentLocalCache() });
-    await clearIndexedDbPersistence(tempDb);
-  } catch { /* ignora se já limpo */ }
-  // Reinicializa com persistentLocalCache limpo — reatribui o binding exportado
-  // `db`, já que a instância antiga foi terminada e não pode mais ser usada.
-  db = getDb();
 }
 
 export function getFirebaseDb(): Firestore {
@@ -94,6 +68,6 @@ function initAppCheck(app: FirebaseApp): AppCheck | null {
 
 // Lazy singletons — safe to import at module level; only initialized when called
 export const auth      = typeof window !== "undefined" ? getAuth(getApp())                                    : null as unknown as Auth;
-export let db           = typeof window !== "undefined" ? getDb()                                              : null as unknown as Firestore;
+export const db         = typeof window !== "undefined" ? getDb()                                              : null as unknown as Firestore;
 export const functions = typeof window !== "undefined" ? getFunctions(getApp(), "southamerica-east1")         : null as unknown as Functions;
 export const appCheck  = typeof window !== "undefined" ? initAppCheck(getApp())                               : null;

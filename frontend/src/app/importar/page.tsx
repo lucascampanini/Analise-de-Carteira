@@ -3,7 +3,6 @@ import { useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { importarClientes, importarPosicoesMulti, importarFundosInfo } from "@/lib/firestore";
-import { resetFirestoreCache } from "@/lib/firebase";
 import * as XLSX from "xlsx";
 import { Upload, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
@@ -382,7 +381,6 @@ export default function ImportarPage() {
     if (!user || !fileRel || !filePos) return;
     setStClts("loading"); setMsgClts("");
     try {
-      await resetFirestoreCache();
       const { clts, semNomeNoSaldo, debug } = await parsearClientes(fileRel, filePos);
       const n = await withTimeout(importarClientes(user.uid, clts));
       const semNomeMsg = semNomeNoSaldo > 0
@@ -402,7 +400,6 @@ export default function ImportarPage() {
     if (!user || !fileDiv) return;
     setStDiv("loading"); setMsgDiv("");
     try {
-      await resetFirestoreCache();
       const posicoes = await parsearDiversificador(fileDiv);
       const nContas  = new Set(posicoes.map((p: any) => p.codigo_conta)).size;
       const n = await withTimeout(importarPosicoesMulti(user.uid, posicoes));
@@ -418,7 +415,6 @@ export default function ImportarPage() {
     if (!user || !fileFund) return;
     setStFund("loading"); setMsgFund("");
     try {
-      await resetFirestoreCache();
       const fundos = await parsearListaFundos(fileFund);
       const n = await withTimeout(importarFundosInfo(user.uid, fundos));
       setMsgFund(`${n} fundos importados!`);
