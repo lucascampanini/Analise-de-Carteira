@@ -65,8 +65,9 @@ export async function resetFirestoreCache(): Promise<void> {
     const tempDb = initializeFirestore(app, { localCache: persistentLocalCache() });
     await clearIndexedDbPersistence(tempDb);
   } catch { /* ignora se já limpo */ }
-  // Reinicializa com persistentLocalCache limpo
-  getDb();
+  // Reinicializa com persistentLocalCache limpo — reatribui o binding exportado
+  // `db`, já que a instância antiga foi terminada e não pode mais ser usada.
+  db = getDb();
 }
 
 export function getFirebaseDb(): Firestore {
@@ -93,6 +94,6 @@ function initAppCheck(app: FirebaseApp): AppCheck | null {
 
 // Lazy singletons — safe to import at module level; only initialized when called
 export const auth      = typeof window !== "undefined" ? getAuth(getApp())                                    : null as unknown as Auth;
-export const db        = typeof window !== "undefined" ? getDb()                                              : null as unknown as Firestore;
+export let db           = typeof window !== "undefined" ? getDb()                                              : null as unknown as Firestore;
 export const functions = typeof window !== "undefined" ? getFunctions(getApp(), "southamerica-east1")         : null as unknown as Functions;
 export const appCheck  = typeof window !== "undefined" ? initAppCheck(getApp())                               : null;
