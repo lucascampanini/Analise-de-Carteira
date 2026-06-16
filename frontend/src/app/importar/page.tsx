@@ -3,6 +3,8 @@ import { useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { importarClientes, importarPosicoesMulti, importarFundosInfo } from "@/lib/firestore";
+import { db } from "@/lib/firebase";
+import { doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import * as XLSX from "xlsx";
 import { Upload, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
 
@@ -374,7 +376,41 @@ export default function ImportarPage() {
   const [msgFund,  setMsgFund]  = useState("");
   const refFund = useRef<HTMLInputElement>(null);
 
+  // Diagnóstico
+  const [stDiag, setStDiag] = useState<Status>("idle");
+  const [msgDiag, setMsgDiag] = useState("");
+
   const isImporting = stClts === "loading" || stDiv === "loading" || stFund === "loading";
+
+  async function testarEscrita() {
+    if (!user) return;
+    setStDiag("loading"); setMsgDiag("");
+    const t0 = performance.now();
+    try {
+      // Escreve na própria coleção "clientes" (já permitida pelas regras)
+      // com um código que não colide com clientes reais.
+      const ref = doc(db, "users", user.uid, "clientes", "_diagnostico_teste");
+      console.log("[Diagnóstico] iniciando setDoc…");
+      await withTimeout(setDoc(ref, {
+        codigo_conta: "_diagnostico_teste",
+        nome: "Teste de Diagnóstico",
+        net: 0,
+        ts: Date.now(),
+      }), 15000);
+      console.log(`[Diagnóstico] setDoc OK em ${(performance.now() - t0).toFixed(0)}ms`);
+      console.log("[Diagnóstico] iniciando getDoc…");
+      const snap = await withTimeout(getDoc(ref), 15000);
+      console.log(`[Diagnóstico] getDoc OK em ${(performance.now() - t0).toFixed(0)}ms — existe: ${snap.exists()}`);
+      await withTimeout(deleteDoc(ref), 15000);
+      console.log(`[Diagnóstico] deleteDoc OK em ${(performance.now() - t0).toFixed(0)}ms`);
+      setMsgDiag(`OK! Escrita + leitura + limpeza em ${(performance.now() - t0).toFixed(0)}ms.`);
+      setStDiag("ok");
+    } catch (err: any) {
+      console.error("[Diagnóstico] erro:", err);
+      setMsgDiag(`Falhou em ${(performance.now() - t0).toFixed(0)}ms: ${err.message}`);
+      setStDiag("error");
+    }
+  }
 
   // ── Import individual ────────────────────────────────────────────────────────
   async function runClientes() {
@@ -445,6 +481,26 @@ export default function ImportarPage() {
           Selecione os arquivos e importe tudo de uma vez, ou individualmente por seção.
         </p>
       </div>
+
+      {/* ── Diagnóstico ── */}
+      <Card
+        title="Diagnóstico de conexão"
+        description="Testa uma escrita + leitura mínima no Firestore (sem arquivos), para isolar se o problema é geral ou só da importação em lote"
+      >
+        <div className="flex items-center gap-3">
+          <button
+            onClick={testarEscrita}
+            disabled={stDiag === "loading"}
+            className="px-4 py-2 bg-slate-700 text-white text-sm rounded-lg hover:bg-slate-800 disabled:opacity-40 transition-colors"
+          >
+            Testar gravação
+          </button>
+          <StatusIcon status={stDiag} />
+          {msgDiag && (
+            <p className={`text-sm ${stDiag === "error" ? "text-red-600" : "text-emerald-600"}`}>{msgDiag}</p>
+          )}
+        </div>
+      </Card>
 
       {/* ── Clientes ── */}
       <Card
