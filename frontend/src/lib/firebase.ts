@@ -32,6 +32,13 @@ function getDb(): Firestore {
   try {
     _dbInstance = initializeFirestore(app, {
       localCache: memoryLocalCache(),
+      // Força long-polling em vez do streaming WebChannel. WebChannel é
+      // frequentemente quebrado por antivírus com inspeção HTTPS, proxy
+      // corporativo ou redes que bloqueiam conexões de longa duração — o
+      // sintoma é escrita que fica "pendente" para sempre (curl funciona,
+      // leitura do cache funciona, mas escrita nunca recebe ACK do servidor).
+      // Long-polling atravessa esses bloqueios. (2026-06)
+      experimentalForceLongPolling: true,
     });
   } catch {
     // já inicializado por outro módulo — reutiliza
