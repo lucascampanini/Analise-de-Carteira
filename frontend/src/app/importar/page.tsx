@@ -400,13 +400,31 @@ export default function ImportarPage() {
       const url =
         `https://firestore.googleapis.com/v1/projects/${projectId}` +
         `/databases/(default)/documents/users/${user.uid}/clientes/_diagnostico_teste`;
+      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
       const tRest = performance.now();
-      console.log("[Diagnóstico] REST fetch iniciando…");
-      const resp = await withTimeout(
-        fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+      console.log("[Diagnóstico] REST GET iniciando…");
+      const respGet = await withTimeout(fetch(url, { headers: authHeaders }), 15000);
+      // REST WRITE (PATCH) — prova se escrita via REST funciona (bypassa o SDK)
+      console.log("[Diagnóstico] REST PATCH iniciando…");
+      const respPut = await withTimeout(fetch(url, {
+        method: "PATCH",
+        headers: { ...authHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fields: {
+            codigo_conta: { stringValue: "_diagnostico_teste" },
+            nome: { stringValue: "Teste REST" },
+            net: { integerValue: "0" },
+          },
+        }),
+      }), 15000);
+      // REST DELETE — limpa o doc de teste
+      const respDel = await withTimeout(
+        fetch(url, { method: "DELETE", headers: authHeaders }),
         15000,
       );
-      restResult = `REST: HTTP ${resp.status} em ${(performance.now() - tRest).toFixed(0)}ms`;
+      restResult =
+        `REST get ${respGet.status}/write ${respPut.status}/del ${respDel.status} ` +
+        `em ${(performance.now() - tRest).toFixed(0)}ms`;
       console.log(`[Diagnóstico] ${restResult}`);
     } catch (err: any) {
       restResult = `REST FALHOU: ${err.message}`;
@@ -435,7 +453,7 @@ export default function ImportarPage() {
       console.error("[Diagnóstico] SDK erro:", err);
     }
 
-    const ok = restResult.startsWith("REST:") && sdkResult.startsWith("SDK: OK");
+    const ok = sdkResult.startsWith("SDK: OK");
     setMsgDiag(`${restResult}  |  ${sdkResult}`);
     setStDiag(ok ? "ok" : "error");
   }
