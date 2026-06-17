@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useDataRefresh } from "@/contexts/DataRefreshContext";
 import { importarClientes, importarPosicoesMulti, importarFundosInfo } from "@/lib/firestore";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { doc, setDoc, getDoc, deleteDoc } from "firebase/firestore";
 import * as XLSX from "xlsx";
 import { Upload, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
@@ -385,31 +385,59 @@ export default function ImportarPage() {
   async function testarEscrita() {
     if (!user) return;
     setStDiag("loading"); setMsgDiag("");
+
+    // ── Teste 1: fetch HTTPS direto à API REST do Firestore ──────────────
+    // Bypassa o SDK inteiro. Igual ao curl, mas de dentro do navegador.
+    // Se ISSO travar/falhar → o navegador não alcança o Firestore (antivírus/
+    // proxy/rede bloqueando). Se funcionar mas o SDK travar → é o SDK.
+    let restResult = "";
+    try {
+      const projectId = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
+      const token = await withTimeout(
+        Promise.resolve(auth?.currentUser?.getIdToken() ?? Promise.resolve(undefined)),
+        15000,
+      );
+      const url =
+        `https://firestore.googleapis.com/v1/projects/${projectId}` +
+        `/databases/(default)/documents/users/${user.uid}/clientes/_diagnostico_teste`;
+      const tRest = performance.now();
+      console.log("[Diagnóstico] REST fetch iniciando…");
+      const resp = await withTimeout(
+        fetch(url, { headers: token ? { Authorization: `Bearer ${token}` } : {} }),
+        15000,
+      );
+      restResult = `REST: HTTP ${resp.status} em ${(performance.now() - tRest).toFixed(0)}ms`;
+      console.log(`[Diagnóstico] ${restResult}`);
+    } catch (err: any) {
+      restResult = `REST FALHOU: ${err.message}`;
+      console.error(`[Diagnóstico] ${restResult}`);
+    }
+
+    // ── Teste 2: SDK Firestore (setDoc + getDoc + deleteDoc) ─────────────
+    let sdkResult = "";
     const t0 = performance.now();
     try {
-      // Escreve na própria coleção "clientes" (já permitida pelas regras)
-      // com um código que não colide com clientes reais.
       const ref = doc(db, "users", user.uid, "clientes", "_diagnostico_teste");
-      console.log("[Diagnóstico] iniciando setDoc…");
+      console.log("[Diagnóstico] SDK setDoc iniciando…");
       await withTimeout(setDoc(ref, {
         codigo_conta: "_diagnostico_teste",
         nome: "Teste de Diagnóstico",
         net: 0,
         ts: Date.now(),
       }), 15000);
-      console.log(`[Diagnóstico] setDoc OK em ${(performance.now() - t0).toFixed(0)}ms`);
-      console.log("[Diagnóstico] iniciando getDoc…");
+      console.log(`[Diagnóstico] SDK setDoc OK em ${(performance.now() - t0).toFixed(0)}ms`);
       const snap = await withTimeout(getDoc(ref), 15000);
-      console.log(`[Diagnóstico] getDoc OK em ${(performance.now() - t0).toFixed(0)}ms — existe: ${snap.exists()}`);
+      console.log(`[Diagnóstico] SDK getDoc OK — existe: ${snap.exists()}`);
       await withTimeout(deleteDoc(ref), 15000);
-      console.log(`[Diagnóstico] deleteDoc OK em ${(performance.now() - t0).toFixed(0)}ms`);
-      setMsgDiag(`OK! Escrita + leitura + limpeza em ${(performance.now() - t0).toFixed(0)}ms.`);
-      setStDiag("ok");
+      sdkResult = `SDK: OK em ${(performance.now() - t0).toFixed(0)}ms`;
     } catch (err: any) {
-      console.error("[Diagnóstico] erro:", err);
-      setMsgDiag(`Falhou em ${(performance.now() - t0).toFixed(0)}ms: ${err.message}`);
-      setStDiag("error");
+      sdkResult = `SDK FALHOU em ${(performance.now() - t0).toFixed(0)}ms: ${err.message}`;
+      console.error("[Diagnóstico] SDK erro:", err);
     }
+
+    const ok = restResult.startsWith("REST:") && sdkResult.startsWith("SDK: OK");
+    setMsgDiag(`${restResult}  |  ${sdkResult}`);
+    setStDiag(ok ? "ok" : "error");
   }
 
   // ── Import individual ────────────────────────────────────────────────────────
