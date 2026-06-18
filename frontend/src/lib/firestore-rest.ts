@@ -14,7 +14,10 @@
 
 import { auth } from "./firebase";
 
-const PROJECT_ID = process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!;
+// .trim(): a env var no Vercel foi gravada com \n no final (crm-assessor\n);
+// na URL passava batido, mas o Firestore :commit valida o resource name ao pé
+// da letra e rejeitava com "Invalid project ID(crm-assessor\n)".
+const PROJECT_ID = (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "").trim();
 const ROOT = `projects/${PROJECT_ID}/databases/(default)/documents`;
 const BASE = `https://firestore.googleapis.com/v1/${ROOT}`;
 
