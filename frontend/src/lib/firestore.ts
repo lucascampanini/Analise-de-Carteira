@@ -4,6 +4,14 @@ import {
   query, where, orderBy,
 } from "firebase/firestore";
 import { db } from "./firebase";
+import {
+  listDocsREST, getDocREST, commitSetREST, deleteDocREST,
+} from "./firestore-rest";
+
+// NOTA: as funções de clientes, posições e fundos_info usam a API REST
+// (firestore-rest.ts) em vez do SDK. No ambiente do assessor o canal de
+// streaming do SDK é bloqueado (escritas/leituras travam indefinidamente),
+// mas a REST funciona normalmente. Ver comentário em firestore-rest.ts.
 
 // ──────────────────────────────────────────────
 // Helpers
@@ -21,38 +29,35 @@ const snap2arr = (snap: any) =>
 // CLIENTES
 // ──────────────────────────────────────────────
 export async function getClientes(uid: string) {
-  const snap = await getDocs(col(uid, "clientes"));
-  return snap2arr(snap).sort((a: any, b: any) =>
-    (b.net || 0) - (a.net || 0)
-  );
+  const list = await listDocsREST(`users/${uid}/clientes`);
+  return list.sort((a: any, b: any) => (b.net || 0) - (a.net || 0));
 }
 
 export async function importarClientes(uid: string, clientes: any[]) {
   // Upsert por codigo_conta — evita apagar+reinserir (reduz writes ~3x)
-  for (let i = 0; i < clientes.length; i += 400) {
-    const b = writeBatch(db);
-    clientes.slice(i, i + 400).forEach((c) => {
-      const ref = doc(col(uid, "clientes"), c.codigo_conta || String(Math.random()));
-      b.set(ref, { ...c, importado_em: new Date().toISOString() });
-    });
-    await b.commit();
-  }
-  return clientes.length;
+  const importado_em = new Date().toISOString();
+  const docs = clientes.map((c) => ({
+    id: c.codigo_conta || String(Math.random()),
+    data: { ...c, importado_em },
+  }));
+  return commitSetREST(`users/${uid}/clientes`, docs);
 }
 
 export async function criarClienteIR(
   uid: string,
   dados: { nome: string; codigo_conta: string; suitability?: string }
 ) {
-  const ref = doc(col(uid, "clientes"), dados.codigo_conta);
-  await setDoc(ref, {
-    nome: dados.nome,
-    codigo_conta: dados.codigo_conta,
-    ...(dados.suitability ? { suitability: dados.suitability } : {}),
-    net: 0,
-    importado_em: new Date().toISOString(),
-    origem: "ir_manual",
-  });
+  await commitSetREST(`users/${uid}/clientes`, [{
+    id: dados.codigo_conta,
+    data: {
+      nome: dados.nome,
+      codigo_conta: dados.codigo_conta,
+      ...(dados.suitability ? { suitability: dados.suitability } : {}),
+      net: 0,
+      importado_em: new Date().toISOString(),
+      origem: "ir_manual",
+    },
+  }]);
 }
 
 // ──────────────────────────────────────────────
@@ -298,32 +303,31 @@ function expandirPosicoes(docs: any[]): any[] {
 export async function getPosicoes(uid: string, conta?: string) {
   // Quando filtra por conta: busca direto o documento do cliente (1 leitura)
   if (conta) {
-    const docSnap = await getDoc(doc(col(uid, "posicoes"), conta));
-    if (docSnap.exists()) {
-      const data = docSnap.data();
-      if (Array.isArray(data.posicoes)) {
-        return [...data.posicoes].sort((a: any, b: any) => (b.valor || 0) - (a.valor || 0));
-      }
+    const data = await getDocREST(`users/${uid}/posicoes/${conta}`);
+    if (data && Array.isArray(data.posicoes)) {
+      return [...data.posicoes].sort((a: any, b: any) => (b.valor || 0) - (a.valor || 0));
     }
     // Fallback: formato antigo — lê toda a coleção e filtra
-    const snap = await getDocs(col(uid, "posicoes"));
-    const list = expandirPosicoes(snap2arr(snap)).filter((p) => p.codigo_conta === conta);
+    const list = expandirPosicoes(await listDocsREST(`users/${uid}/posicoes`))
+      .filter((p) => p.codigo_conta === conta);
     return list.sort((a: any, b: any) => (b.valor || 0) - (a.valor || 0));
   }
 
   // Sem filtro: lê toda a coleção, expande e deduplica
-  const snap = await getDocs(col(uid, "posicoes"));
-  return expandirPosicoes(snap2arr(snap)).sort((a: any, b: any) => (b.valor || 0) - (a.valor || 0));
+  const list = await listDocsREST(`users/${uid}/posicoes`);
+  return expandirPosicoes(list).sort((a: any, b: any) => (b.valor || 0) - (a.valor || 0));
 }
 
 export async function importarPosicoes(uid: string, conta: string, posicoes: any[]) {
   // Novo formato: 1 documento por cliente com array de posições
-  const ref = doc(col(uid, "posicoes"), conta);
-  await setDoc(ref, {
-    codigo_conta: conta,
-    posicoes: posicoes.map((p) => ({ ...p, codigo_conta: conta })),
-    importado_em: new Date().toISOString(),
-  });
+  await commitSetREST(`users/${uid}/posicoes`, [{
+    id: conta,
+    data: {
+      codigo_conta: conta,
+      posicoes: posicoes.map((p) => ({ ...p, codigo_conta: conta })),
+      importado_em: new Date().toISOString(),
+    },
+  }]);
   return posicoes.length;
 }
 
@@ -336,18 +340,13 @@ export async function importarPosicoesMulti(uid: string, posicoes: any[]) {
     porConta.get(conta)!.push(p);
   });
 
-  const entries = Array.from(porConta.entries());
   const importado_em = new Date().toISOString();
+  const docs = Array.from(porConta.entries()).map(([conta, pos]) => ({
+    id: conta,
+    data: { codigo_conta: conta, posicoes: pos, importado_em },
+  }));
 
-  for (let i = 0; i < entries.length; i += 400) {
-    const b = writeBatch(db);
-    entries.slice(i, i + 400).forEach(([conta, pos]) => {
-      const ref = doc(col(uid, "posicoes"), conta);
-      b.set(ref, { codigo_conta: conta, posicoes: pos, importado_em });
-    });
-    await b.commit();
-  }
-
+  await commitSetREST(`users/${uid}/posicoes`, docs);
   return posicoes.length;
 }
 
@@ -355,21 +354,15 @@ export async function importarPosicoesMulti(uid: string, posicoes: any[]) {
 // FUNDOS INFO (lista-fundos XP)
 // ──────────────────────────────────────────────
 export async function getFundosInfo(uid: string) {
-  const snap = await getDocs(collection(db, "users", uid, "fundos_info"));
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+  return listDocsREST(`users/${uid}/fundos_info`);
 }
 
 export async function importarFundosInfo(uid: string, fundos: any[]) {
-  const col = collection(db, "users", uid, "fundos_info");
-  for (let i = 0; i < fundos.length; i += 400) {
-    const b = writeBatch(db);
-    fundos.slice(i, i + 400).forEach((f) => {
-      const ref = doc(col, f.cnpj || String(Math.random()));
-      b.set(ref, f);
-    });
-    await b.commit();
-  }
-  return fundos.length;
+  const docs = fundos.map((f) => ({
+    id: f.cnpj || String(Math.random()),
+    data: f,
+  }));
+  return commitSetREST(`users/${uid}/fundos_info`, docs);
 }
 
 // ──────────────────────────────────────────────
@@ -392,18 +385,15 @@ export async function setSupernovaConfig(uid: string, config: any) {
 
 export async function deletarPosicoesCliente(uid: string, conta: string) {
   // Novo formato: 1 doc por cliente, ID = codigo_conta — delete direto, sem scan
-  const ref = doc(col(uid, "posicoes"), conta);
-  const snap = await getDoc(ref);
-  if (snap.exists()) {
-    await deleteDoc(ref);
+  const existing = await getDocREST(`users/${uid}/posicoes/${conta}`);
+  if (existing) {
+    await deleteDocREST(`users/${uid}/posicoes/${conta}`);
     return;
   }
   // Fallback: formato antigo com 1 doc por posição
-  const existing = await getDocs(col(uid, "posicoes"));
-  const doConta = existing.docs.filter((d) => d.data().codigo_conta === conta);
-  for (let i = 0; i < doConta.length; i += 400) {
-    const b = writeBatch(db);
-    doConta.slice(i, i + 400).forEach((d) => b.delete(d.ref));
-    await b.commit();
+  const all = await listDocsREST(`users/${uid}/posicoes`);
+  const doConta = all.filter((d: any) => d.codigo_conta === conta);
+  for (const d of doConta) {
+    await deleteDocREST(`users/${uid}/posicoes/${d.id}`);
   }
 }
