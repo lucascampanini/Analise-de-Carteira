@@ -400,7 +400,7 @@ export default function ImportarPage() {
       const url =
         `https://firestore.googleapis.com/v1/projects/${projectId}` +
         `/databases/(default)/documents/users/${user.uid}/clientes/_diagnostico_teste`;
-      const authHeaders = token ? { Authorization: `Bearer ${token}` } : {};
+      const authHeaders: Record<string, string> = token ? { Authorization: `Bearer ${token}` } : {};
       const tRest = performance.now();
       console.log("[Diagnóstico] REST GET iniciando…");
       const respGet = await withTimeout(fetch(url, { headers: authHeaders }), 15000);
