@@ -1,13 +1,12 @@
 import {
-  collection, doc, addDoc, setDoc, getDoc, getDocs,
-  updateDoc, deleteDoc, serverTimestamp, writeBatch,
-  query, where, orderBy,
-} from "firebase/firestore";
-import { db } from "./firebase";
-import {
   listDocsREST, getDocREST, commitSetREST, deleteDocREST,
   addDocREST, patchDocREST,
 } from "./firestore-rest";
+
+// NOTA: toda a camada de dados usa a API REST do Firestore (firestore-rest.ts)
+// em vez do SDK. No ambiente do assessor o canal de streaming do SDK é
+// bloqueado por antivírus/proxy (escritas e leituras travam indefinidamente),
+// mas a REST funciona normalmente. Ver comentário em firestore-rest.ts.
 
 // Comparador de "criado_em" robusto: via REST um Timestamp do Firestore vem
 // como string ISO; docs antigos do SDK podem ter vindo como { seconds }; e
@@ -19,23 +18,6 @@ const tsMillis = (v: any): number => {
   if (typeof v === "object" && typeof v.seconds === "number") return v.seconds * 1000;
   return 0;
 };
-
-// NOTA: as funções de clientes, posições e fundos_info usam a API REST
-// (firestore-rest.ts) em vez do SDK. No ambiente do assessor o canal de
-// streaming do SDK é bloqueado (escritas/leituras travam indefinidamente),
-// mas a REST funciona normalmente. Ver comentário em firestore-rest.ts.
-
-// ──────────────────────────────────────────────
-// Helpers
-// ──────────────────────────────────────────────
-const col = (uid: string, name: string) =>
-  collection(db, "users", uid, name);
-
-const docRef = (uid: string, name: string, id: string) =>
-  doc(db, "users", uid, name, id);
-
-const snap2arr = (snap: any) =>
-  snap.docs.map((d: any) => ({ id: d.id, ...d.data() }));
 
 // ──────────────────────────────────────────────
 // CLIENTES
@@ -76,37 +58,33 @@ export async function criarClienteIR(
 // ANOTAÇÕES
 // ──────────────────────────────────────────────
 export async function getAnotacoes(uid: string, conta: string) {
-  const snap = await getDocs(col(uid, "anotacoes"));
-  return snap2arr(snap)
+  const list = await listDocsREST(`users/${uid}/anotacoes`);
+  return list
     .filter((a: any) => a.codigo_conta === conta)
-    .sort((a: any, b: any) => {
-      const ta = a.criado_em?.seconds ?? 0;
-      const tb = b.criado_em?.seconds ?? 0;
-      return tb - ta;
-    });
+    .sort((a: any, b: any) => tsMillis(b.criado_em) - tsMillis(a.criado_em));
 }
 
 export async function addAnotacao(uid: string, conta: string, tipo: string, texto: string) {
-  return addDoc(col(uid, "anotacoes"), {
+  return addDocREST(`users/${uid}/anotacoes`, {
     codigo_conta: conta,
     tipo,
     texto,
-    criado_em: serverTimestamp(),
+    criado_em: new Date().toISOString(),
   });
 }
 
 export async function deleteAnotacao(uid: string, id: string) {
-  return deleteDoc(docRef(uid, "anotacoes", id));
+  return deleteDocREST(`users/${uid}/anotacoes/${id}`);
 }
 
 // ──────────────────────────────────────────────
 // EVENTOS / TAREFAS
 // ──────────────────────────────────────────────
 export async function getEventosProximos(uid: string, dias = 90) {
-  const snap = await getDocs(col(uid, "eventos"));
+  const list = await listDocsREST(`users/${uid}/eventos`);
   const limite = new Date();
   limite.setDate(limite.getDate() + dias);
-  return snap2arr(snap)
+  return list
     .filter((e: any) => !e.concluido && new Date(e.data_evento) <= limite)
     .sort((a: any, b: any) =>
       new Date(a.data_evento).getTime() - new Date(b.data_evento).getTime()
@@ -122,26 +100,26 @@ export async function getEventosProximos(uid: string, dias = 90) {
 }
 
 export async function addEvento(uid: string, data: any) {
-  return addDoc(col(uid, "eventos"), { ...data, concluido: false, criado_em: serverTimestamp() });
+  return addDocREST(`users/${uid}/eventos`, { ...data, concluido: false, criado_em: new Date().toISOString() });
 }
 
 export async function concluirEvento(uid: string, id: string) {
-  return updateDoc(docRef(uid, "eventos", id), { concluido: true });
+  return patchDocREST(`users/${uid}/eventos/${id}`, { concluido: true });
 }
 
 export async function deleteEvento(uid: string, id: string) {
-  return deleteDoc(docRef(uid, "eventos", id));
+  return deleteDocREST(`users/${uid}/eventos/${id}`);
 }
 
 // ──────────────────────────────────────────────
 // REUNIÕES
 // ──────────────────────────────────────────────
 export async function getReunioes(uid: string, dias = 30) {
-  const snap = await getDocs(col(uid, "reunioes"));
+  const list = await listDocsREST(`users/${uid}/reunioes`);
   const agora = new Date().toISOString();
   const limite = new Date();
   limite.setDate(limite.getDate() + dias);
-  return snap2arr(snap)
+  return list
     .filter(
       (r: any) =>
         r.status !== "CANCELADA" &&
@@ -154,59 +132,50 @@ export async function getReunioes(uid: string, dias = 30) {
 }
 
 export async function addReuniao(uid: string, data: any) {
-  return addDoc(col(uid, "reunioes"), {
+  return addDocREST(`users/${uid}/reunioes`, {
     ...data,
     status: "AGENDADA",
-    criado_em: serverTimestamp(),
+    criado_em: new Date().toISOString(),
   });
 }
 
 export async function cancelarReuniao(uid: string, id: string) {
-  return updateDoc(docRef(uid, "reunioes", id), { status: "CANCELADA" });
+  return patchDocREST(`users/${uid}/reunioes/${id}`, { status: "CANCELADA" });
 }
 
 // ──────────────────────────────────────────────
 // LEADS
 // ──────────────────────────────────────────────
 export async function getLeads(uid: string, estagio?: string) {
-  const snap = await getDocs(col(uid, "leads"));
-  let list = snap2arr(snap);
+  let list = await listDocsREST(`users/${uid}/leads`);
   if (estagio) list = list.filter((l: any) => l.estagio === estagio);
-  return list.sort((a: any, b: any) => {
-    const ta = a.criado_em?.seconds ?? 0;
-    const tb = b.criado_em?.seconds ?? 0;
-    return tb - ta;
-  });
+  return list.sort((a: any, b: any) => tsMillis(b.criado_em) - tsMillis(a.criado_em));
 }
 
 export async function addLead(uid: string, data: any) {
-  return addDoc(col(uid, "leads"), { ...data, criado_em: serverTimestamp() });
+  return addDocREST(`users/${uid}/leads`, { ...data, criado_em: new Date().toISOString() });
 }
 
 export async function patchLeadEstagio(uid: string, id: string, estagio: string) {
-  return updateDoc(docRef(uid, "leads", id), { estagio });
+  return patchDocREST(`users/${uid}/leads/${id}`, { estagio });
 }
 
 export async function patchLead(uid: string, id: string, data: any) {
-  return updateDoc(docRef(uid, "leads", id), data);
+  return patchDocREST(`users/${uid}/leads/${id}`, data);
 }
 
 export async function deleteLead(uid: string, id: string) {
-  return deleteDoc(docRef(uid, "leads", id));
+  return deleteDocREST(`users/${uid}/leads/${id}`);
 }
 
 export async function importarLeads(uid: string, leads: any[]) {
-  // writeBatch em vez de loop sequencial — N requests → ceil(N/400) requests
-  const now = serverTimestamp();
-  for (let i = 0; i < leads.length; i += 400) {
-    const b = writeBatch(db);
-    leads.slice(i, i + 400).forEach((l) => {
-      const ref = doc(col(uid, "leads")); // auto-ID
-      b.set(ref, { ...l, criado_em: now });
-    });
-    await b.commit();
-  }
-  return leads.length;
+  // commit em lote via REST com IDs gerados no cliente (mantém ceil(N/400) requests)
+  const criado_em = new Date().toISOString();
+  const docs = leads.map((l) => ({
+    id: crypto.randomUUID(),
+    data: { ...l, criado_em },
+  }));
+  return commitSetREST(`users/${uid}/leads`, docs);
 }
 
 // ──────────────────────────────────────────────
@@ -375,18 +344,15 @@ export async function importarFundosInfo(uid: string, fundos: any[]) {
 // SUPERNOVA
 // ──────────────────────────────────────────────
 export async function getAllAnotacoes(uid: string) {
-  const snap = await getDocs(col(uid, "anotacoes"));
-  return snap2arr(snap);
+  return listDocsREST(`users/${uid}/anotacoes`);
 }
 
 export async function getSupernovaConfig(uid: string) {
-  const ref = doc(db, "users", uid, "config", "supernova");
-  const snap = await getDoc(ref);
-  return snap.exists() ? snap.data() : null;
+  return getDocREST(`users/${uid}/config/supernova`);
 }
 
 export async function setSupernovaConfig(uid: string, config: any) {
-  await setDoc(doc(db, "users", uid, "config", "supernova"), config);
+  await commitSetREST(`users/${uid}/config`, [{ id: "supernova", data: config }]);
 }
 
 export async function deletarPosicoesCliente(uid: string, conta: string) {
