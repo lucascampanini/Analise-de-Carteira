@@ -6,7 +6,19 @@ import {
 import { db } from "./firebase";
 import {
   listDocsREST, getDocREST, commitSetREST, deleteDocREST,
+  addDocREST, patchDocREST,
 } from "./firestore-rest";
+
+// Comparador de "criado_em" robusto: via REST um Timestamp do Firestore vem
+// como string ISO; docs antigos do SDK podem ter vindo como { seconds }; e
+// alguns campos são número (epoch ms). Normaliza tudo para milissegundos.
+const tsMillis = (v: any): number => {
+  if (v == null) return 0;
+  if (typeof v === "number") return v;
+  if (typeof v === "string") { const t = Date.parse(v); return isNaN(t) ? 0 : t; }
+  if (typeof v === "object" && typeof v.seconds === "number") return v.seconds * 1000;
+  return 0;
+};
 
 // NOTA: as funções de clientes, posições e fundos_info usam a API REST
 // (firestore-rest.ts) em vez do SDK. No ambiente do assessor o canal de
@@ -201,71 +213,65 @@ export async function importarLeads(uid: string, leads: any[]) {
 // OFERTAS
 // ──────────────────────────────────────────────
 export async function getOfertas(uid: string) {
-  const snap = await getDocs(col(uid, "ofertas"));
-  return snap2arr(snap).sort((a: any, b: any) => {
-    const ta = a.criado_em?.seconds ?? 0;
-    const tb = b.criado_em?.seconds ?? 0;
-    return tb - ta;
-  });
+  const list = await listDocsREST(`users/${uid}/ofertas`);
+  return list.sort((a: any, b: any) => tsMillis(b.criado_em) - tsMillis(a.criado_em));
 }
 
 export async function addOferta(uid: string, data: any) {
-  const ref = await addDoc(col(uid, "ofertas"), {
+  return addDocREST(`users/${uid}/ofertas`, {
     ...data,
-    criado_em: serverTimestamp(),
+    criado_em: new Date().toISOString(),
   });
-  return ref.id;
 }
 
 export async function patchOferta(uid: string, id: string, data: any) {
-  return updateDoc(docRef(uid, "ofertas", id), data);
+  return patchDocREST(`users/${uid}/ofertas/${id}`, data);
 }
 
 export async function deleteOferta(uid: string, id: string) {
-  return deleteDoc(docRef(uid, "ofertas", id));
+  return deleteDocREST(`users/${uid}/ofertas/${id}`);
 }
 
 // ──────────────────────────────────────────────
 // OFERTA × CLIENTES
 // ──────────────────────────────────────────────
 export async function getAllClientesOfertas(uid: string) {
-  const snap = await getDocs(col(uid, "oferta_clientes"));
-  return snap2arr(snap);
+  return listDocsREST(`users/${uid}/oferta_clientes`);
 }
 
 export async function getClientesOferta(uid: string, ofertaId: string) {
-  const q = query(col(uid, "oferta_clientes"), where("oferta_id", "==", ofertaId));
-  const snap = await getDocs(q);
-  return snap2arr(snap);
+  const list = await listDocsREST(`users/${uid}/oferta_clientes`);
+  return list.filter((c: any) => c.oferta_id === ofertaId);
 }
 
 export async function addClienteOferta(uid: string, data: any) {
-  const ref = await addDoc(col(uid, "oferta_clientes"), {
+  return addDocREST(`users/${uid}/oferta_clientes`, {
     ...data,
-    criado_em: serverTimestamp(),
+    criado_em: new Date().toISOString(),
   });
-  return ref.id;
 }
 
 export async function patchClienteOferta(uid: string, id: string, data: any) {
-  return updateDoc(docRef(uid, "oferta_clientes", id), data);
+  return patchDocREST(`users/${uid}/oferta_clientes/${id}`, data);
 }
 
 export async function deleteClienteOferta(uid: string, id: string) {
-  return deleteDoc(docRef(uid, "oferta_clientes", id));
+  return deleteDocREST(`users/${uid}/oferta_clientes/${id}`);
 }
 
 export async function importarClientesOferta(uid: string, ofertaId: string, clientes: any[]) {
-  const snap = await getDocs(query(col(uid, "oferta_clientes"), where("oferta_id", "==", ofertaId)));
-  const existentes = new Set(snap.docs.map((d) => d.data().codigo_conta));
+  const list = await listDocsREST(`users/${uid}/oferta_clientes`);
+  const existentes = new Set(
+    list.filter((c: any) => c.oferta_id === ofertaId).map((c: any) => c.codigo_conta)
+  );
   let inseridos = 0;
   for (const c of clientes) {
     if (existentes.has(c.codigo_conta)) continue;
-    await addDoc(col(uid, "oferta_clientes"), {
+    await addDocREST(`users/${uid}/oferta_clientes`, {
       ...c,
       oferta_id: ofertaId,
       status: c.status || "PENDENTE",
-      criado_em: serverTimestamp(),
+      criado_em: new Date().toISOString(),
     });
     inseridos++;
   }

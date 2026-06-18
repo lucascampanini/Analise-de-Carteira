@@ -137,6 +137,38 @@ export async function commitSetREST(
   return docs.length;
 }
 
+// ── Criação com ID automático (= addDoc) ──────────────────────────────────
+// Retorna o ID gerado pelo Firestore.
+export async function addDocREST(coll: string, data: Record<string, any>): Promise<string> {
+  const token = await getToken();
+  const r = await fetch(`${BASE}/${coll}`, {
+    method: "POST",
+    headers: headers(token, true),
+    body: JSON.stringify({ fields: toFields(data) }),
+  });
+  if (!r.ok) {
+    throw new Error(`Firestore create (${coll}) falhou: HTTP ${r.status} — ${await r.text()}`);
+  }
+  const d = await r.json();
+  return d.name.split("/").pop();
+}
+
+// ── Atualização parcial (= updateDoc / merge) ─────────────────────────────
+// Atualiza APENAS os campos informados (updateMask), preservando os demais.
+export async function patchDocREST(path: string, data: Record<string, any>): Promise<void> {
+  const token = await getToken();
+  const keys = Object.keys(data).filter((k) => data[k] !== undefined);
+  const mask = keys.map((k) => `updateMask.fieldPaths=${encodeURIComponent(k)}`).join("&");
+  const r = await fetch(`${BASE}/${path}?${mask}`, {
+    method: "PATCH",
+    headers: headers(token, true),
+    body: JSON.stringify({ fields: toFields(data) }),
+  });
+  if (!r.ok) {
+    throw new Error(`Firestore patch (${path}) falhou: HTTP ${r.status} — ${await r.text()}`);
+  }
+}
+
 // ── Exclusão de 1 documento ───────────────────────────────────────────────
 export async function deleteDocREST(path: string): Promise<void> {
   const token = await getToken();
